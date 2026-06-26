@@ -38,7 +38,9 @@ std::shared_ptr<Context> Context::GetInstance() {
 
 Context::~Context() {
     SPDLOG_TRACE("destruct context");
-    GetWindow()->SaveWindowToConfig();
+    if (auto window = GetWindow()) {
+        window->SaveWindowToConfig();
+    }
 
     // Explicitly destructing everything so that logging is done last.
     mAudio = nullptr;
@@ -56,7 +58,9 @@ Context::~Context() {
     mScriptLoader = nullptr;
     mKeystore = nullptr;
 #endif
-    GetConfig()->Save();
+    if (auto config = GetConfig()) {
+        config->Save();
+    }
     mConfig = nullptr;
     spdlog::shutdown();
 }
@@ -124,7 +128,7 @@ bool Context::InitLogging(spdlog::level::level_enum debugBuildLogLevel,
         std::vector<spdlog::sink_ptr> sinks;
 
 #if (!defined(_WIN32)) || defined(_DEBUG)
-#if defined(_DEBUG) && defined(_WIN32)
+#if defined(_DEBUG) && defined(_WIN32) && !defined(TOWNSHIP_SKIP_LUS_DEBUG_CONSOLE)
         // LLVM on Windows allocs a hidden console in its entrypoint function.
         // We free that console here to create our own.
         FreeConsole();
