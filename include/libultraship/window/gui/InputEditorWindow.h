@@ -6,10 +6,18 @@
 #include <unordered_map>
 #include <string>
 #include <vector>
-#include <set>
+#include <utility>
 #include "ship/controller/controldevice/controller/Controller.h"
 
+namespace Ship {
+class ControlDeck;
+}
+
 namespace LUS {
+
+/** @brief Returns the active ControlDeck button schema in deterministic bitmask order. */
+std::vector<std::pair<CONTROLLERBUTTONS_T, std::string>>
+BuildInputEditorButtonRows(const Ship::ControlDeck& controlDeck);
 
 /**
  * @brief An ImGui window for editing, binding, and testing controller mappings.
@@ -225,8 +233,6 @@ class InputEditorWindow : public Ship::GuiWindow {
      */
     void DrawPortTab(uint8_t portIndex);
 
-    std::set<CONTROLLERBUTTONS_T> mButtonsBitmasks;
-    std::set<CONTROLLERBUTTONS_T> mDpadBitmasks;
     bool mInputEditorPopupOpen;
 
     /**

@@ -111,7 +111,9 @@ void Gui::ImGuiWMInit() {
 void Gui::ShutDownImGui(Ship::Window* window) {
     ImGuiWMShutdown();
     ImGuiBackendShutdown();
-    ImGui::DestroyContext();
+    if (ImGui::GetCurrentContext() != nullptr) {
+        ImGui::DestroyContext();
+    }
 }
 
 void Gui::ImGuiWMShutdown() {

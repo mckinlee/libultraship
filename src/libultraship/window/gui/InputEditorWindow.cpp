@@ -5,11 +5,25 @@
 #include "ship/config/ConsoleVariable.h"
 #include "ship/controller/controldevice/controller/mapping/sdl/SDLAxisDirectionToButtonMapping.h"
 #include "ship/controller/controldeck/ControlDeck.h"
-#include "libultraship/libultra/controller.h"
+
+#include <algorithm>
 
 #define SCALE_IMGUI_SIZE(value) ((value / 13.0f) * ImGui::GetFontSize())
 
 namespace LUS {
+
+std::vector<std::pair<CONTROLLERBUTTONS_T, std::string>>
+BuildInputEditorButtonRows(const Ship::ControlDeck& controlDeck) {
+    std::vector<std::pair<CONTROLLERBUTTONS_T, std::string>> rows;
+    rows.reserve(controlDeck.GetAllButtonNames().size());
+    for (const auto& [bitmask, name] : controlDeck.GetAllButtonNames()) {
+        rows.emplace_back(bitmask, name);
+    }
+    std::sort(rows.begin(), rows.end(), [](const auto& left, const auto& right) {
+        return left.first < right.first;
+    });
+    return rows;
+}
 
 InputEditorWindow::~InputEditorWindow() {
     SPDLOG_TRACE("destruct input editor window");
@@ -21,9 +35,6 @@ void InputEditorWindow::InitElement() {
     mRumbleTimer = INT32_MAX;
     mRumbleMappingToTest = nullptr;
     mInputEditorPopupOpen = false;
-
-    mButtonsBitmasks = { BTN_A, BTN_B, BTN_START, BTN_L, BTN_R, BTN_Z, BTN_CUP, BTN_CDOWN, BTN_CLEFT, BTN_CRIGHT };
-    mDpadBitmasks = { BTN_DUP, BTN_DDOWN, BTN_DLEFT, BTN_DRIGHT };
 }
 
 #define INPUT_EDITOR_WINDOW_GAME_INPUT_BLOCK_ID 95237929
@@ -1263,27 +1274,10 @@ void InputEditorWindow::DrawPortTab(uint8_t portIndex) {
         ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
 
         if (ImGui::CollapsingHeader("Buttons", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
-            DrawButtonLine("A", portIndex, BTN_A, CHIP_COLOR_N64_BLUE);
-            DrawButtonLine("B", portIndex, BTN_B, CHIP_COLOR_N64_GREEN);
-            DrawButtonLine("Start", portIndex, BTN_START, CHIP_COLOR_N64_RED);
-            DrawButtonLine("L", portIndex, BTN_L);
-            DrawButtonLine("R", portIndex, BTN_R);
-            DrawButtonLine("Z", portIndex, BTN_Z);
-            DrawButtonLine(StringHelper::Sprintf("C %s", ICON_FA_ARROW_UP).c_str(), portIndex, BTN_CUP,
-                           CHIP_COLOR_N64_YELLOW);
-            DrawButtonLine(StringHelper::Sprintf("C %s", ICON_FA_ARROW_DOWN).c_str(), portIndex, BTN_CDOWN,
-                           CHIP_COLOR_N64_YELLOW);
-            DrawButtonLine(StringHelper::Sprintf("C %s", ICON_FA_ARROW_LEFT).c_str(), portIndex, BTN_CLEFT,
-                           CHIP_COLOR_N64_YELLOW);
-            DrawButtonLine(StringHelper::Sprintf("C %s", ICON_FA_ARROW_RIGHT).c_str(), portIndex, BTN_CRIGHT,
-                           CHIP_COLOR_N64_YELLOW);
-        }
-
-        if (ImGui::CollapsingHeader("D-Pad", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
-            DrawButtonLine(StringHelper::Sprintf("%s", ICON_FA_ARROW_UP).c_str(), portIndex, BTN_DUP);
-            DrawButtonLine(StringHelper::Sprintf("%s", ICON_FA_ARROW_DOWN).c_str(), portIndex, BTN_DDOWN);
-            DrawButtonLine(StringHelper::Sprintf("%s", ICON_FA_ARROW_LEFT).c_str(), portIndex, BTN_DLEFT);
-            DrawButtonLine(StringHelper::Sprintf("%s", ICON_FA_ARROW_RIGHT).c_str(), portIndex, BTN_DRIGHT);
+            for (const auto& [bitmask, name] :
+                 BuildInputEditorButtonRows(*Ship::Context::GetRawInstance()->GetControlDeck())) {
+                DrawButtonLine(name.c_str(), portIndex, bitmask);
+            }
         }
 
         if (ImGui::CollapsingHeader("Analog Stick", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
