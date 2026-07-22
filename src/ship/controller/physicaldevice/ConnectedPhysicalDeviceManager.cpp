@@ -6,6 +6,7 @@ ConnectedPhysicalDeviceManager::ConnectedPhysicalDeviceManager() {
 }
 
 ConnectedPhysicalDeviceManager::~ConnectedPhysicalDeviceManager() {
+    CloseConnectedSDLGamepads();
 }
 
 std::unordered_map<int32_t, SDL_GameController*>
@@ -50,8 +51,7 @@ void ConnectedPhysicalDeviceManager::HandlePhysicalDeviceDisconnect(int32_t sdlJ
 }
 
 void ConnectedPhysicalDeviceManager::RefreshConnectedSDLGamepads() {
-    mConnectedSDLGamepads.clear();
-    mConnectedSDLGamepadNames.clear();
+    CloseConnectedSDLGamepads();
     static SDL_JoystickGUID sZeroGuid;
 
     for (int32_t i = 0; i < SDL_NumJoysticks(); i++) {
@@ -85,6 +85,7 @@ void ConnectedPhysicalDeviceManager::RefreshConnectedSDLGamepads() {
         auto instanceId = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gamepad));
         if (instanceId < 0) {
             SPDLOG_ERROR("SDL JoystickInstanceID error (GUID: {}): {}", deviceGuidCStr, SDL_GetError());
+            SDL_GameControllerClose(gamepad);
             continue;
         }
 
@@ -104,5 +105,15 @@ void ConnectedPhysicalDeviceManager::RefreshConnectedSDLGamepads() {
             mIgnoredInstanceIds[port].insert(instanceId);
         }
     }
+}
+
+void ConnectedPhysicalDeviceManager::CloseConnectedSDLGamepads() {
+    for (const auto& [instanceId, gamepad] : mConnectedSDLGamepads) {
+        if (gamepad != nullptr) {
+            SDL_GameControllerClose(gamepad);
+        }
+    }
+    mConnectedSDLGamepads.clear();
+    mConnectedSDLGamepadNames.clear();
 }
 } // namespace Ship

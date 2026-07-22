@@ -18,7 +18,7 @@ namespace Ship {
  */
 class ConnectedPhysicalDeviceManager {
   public:
-    /** @brief Constructs the manager and performs an initial scan of connected gamepads. */
+    /** @brief Constructs an empty manager; the window owner scans after SDL controller initialization. */
     ConnectedPhysicalDeviceManager();
     ~ConnectedPhysicalDeviceManager();
 
@@ -81,6 +81,9 @@ class ConnectedPhysicalDeviceManager {
 
     /** @brief Re-scans all connected SDL gamepads and rebuilds the internal maps. */
     void RefreshConnectedSDLGamepads();
+
+    /** @brief Closes every owned SDL controller handle and clears the device snapshot. */
+    void CloseConnectedSDLGamepads();
 
   private:
     std::unordered_map<int32_t, SDL_GameController*> mConnectedSDLGamepads;
