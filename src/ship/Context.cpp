@@ -174,8 +174,10 @@ bool Context::InitLogging(spdlog::level::level_enum debugBuildLogLevel,
         std::filesystem::create_directories(
             std::filesystem::path(logPath).parent_path(), directoryError);
         if (directoryError) {
-            throw std::system_error(directoryError,
-                                    "Failed to create log directory");
+            std::cerr << "Log initialization failed: unable to create "
+                      << std::filesystem::path(logPath).parent_path()
+                      << ": " << directoryError.message() << std::endl;
+            return false;
         }
         auto fileSink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(logPath, 1024 * 1024 * 10, 10);
         sinks.push_back(fileSink);
@@ -482,9 +484,6 @@ std::string Context::GetAppBundlePath() {
     return std::string(home) + "/Documents";
 #endif
 
-#ifdef NON_PORTABLE
-    return CMAKE_INSTALL_PREFIX;
-#else
 #ifdef __APPLE__
     FolderManager folderManager;
     return folderManager.getMainBundlePath();
@@ -529,7 +528,6 @@ std::string Context::GetAppBundlePath() {
 #endif
 
     return ".";
-#endif
 }
 
 std::string Context::GetAppDirectoryPath(const std::string& appName) {
