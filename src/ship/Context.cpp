@@ -170,6 +170,13 @@ bool Context::InitLogging(spdlog::level::level_enum debugBuildLogLevel,
 #endif
 
         auto logPath = GetPathRelativeToAppDirectory(("logs/" + GetName() + ".log"));
+        std::error_code directoryError;
+        std::filesystem::create_directories(
+            std::filesystem::path(logPath).parent_path(), directoryError);
+        if (directoryError) {
+            throw std::system_error(directoryError,
+                                    "Failed to create log directory");
+        }
         auto fileSink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(logPath, 1024 * 1024 * 10, 10);
         sinks.push_back(fileSink);
 #ifdef _DEBUG
@@ -561,7 +568,10 @@ std::string Context::GetAppDirectoryPath(const std::string& appName) {
 #endif
 
 #ifdef NON_PORTABLE
-    const std::string& effectiveAppName = appName.empty() ? GetInstance()->mShortName : appName;
+    const Context* instance = GetRawInstance();
+    const std::string effectiveAppName = appName.empty()
+        ? (instance != nullptr ? instance->mShortName : "libultraship")
+        : appName;
     char* prefpath = SDL_GetPrefPath(NULL, effectiveAppName.c_str());
     if (prefpath != NULL) {
         std::string ret(prefpath);
