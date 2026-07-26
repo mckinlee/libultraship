@@ -1,6 +1,8 @@
 #include "ship/Context.h"
 #include "ship/controller/controldevice/controller/mapping/keyboard/KeyboardScancodes.h"
+#include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -39,6 +41,26 @@ void Context::DestroyInstance() {
     mContext = nullptr;
 }
 
+bool Context::SetAppDirectoryPathOverride(const std::string& absolutePath) {
+    if (mLogger || mConfig || mConsoleVariables || mResourceManager ||
+        mControlDeck || mCrashHandler || mWindow || mConsole || mAudio ||
+        mFileDropMgr || mEventSystem
+#ifdef ENABLE_SCRIPTING
+        || mScriptLoader || mKeystore
+#endif
+    ) {
+        return false;
+    }
+
+    const std::filesystem::path path(absolutePath);
+    if (path.empty() || !path.is_absolute() ||
+        path.lexically_normal() != path) {
+        return false;
+    }
+    mAppDirectoryPathOverride = path.string();
+    return true;
+}
+
 Context::~Context() {
     SPDLOG_TRACE("destruct context");
     if (auto window = GetWindow()) {
@@ -66,6 +88,10 @@ Context::~Context() {
     mConfig = nullptr;
     if (mLogger) {
         mLogger->flush();
+        spdlog::drop(mLogger->name());
+        spdlog::set_default_logger(
+            std::make_shared<spdlog::logger>(
+                "libultraship-shutdown"));
     }
     mLogger = nullptr;
 #ifndef _DEBUG
@@ -531,6 +557,12 @@ std::string Context::GetAppBundlePath() {
 }
 
 std::string Context::GetAppDirectoryPath(const std::string& appName) {
+    const Context* instance = GetRawInstance();
+    if (instance != nullptr &&
+        !instance->mAppDirectoryPathOverride.empty()) {
+        return instance->mAppDirectoryPathOverride;
+    }
+
 #if defined(__ANDROID__)
     const char* externaldir = SDL_AndroidGetExternalStoragePath();
     if (externaldir != NULL) {
@@ -541,6 +573,13 @@ std::string Context::GetAppDirectoryPath(const std::string& appName) {
 #ifdef __IOS__
     const char* home = getenv("HOME");
     return std::string(home) + "/Documents";
+#endif
+
+#if defined(_WIN32)
+    if (char* fpath = std::getenv("SHIP_HOME");
+        fpath != nullptr && fpath[0] != '\0') {
+        return std::string(fpath);
+    }
 #endif
 
 #if defined(__APPLE__)
@@ -566,7 +605,6 @@ std::string Context::GetAppDirectoryPath(const std::string& appName) {
 #endif
 
 #ifdef NON_PORTABLE
-    const Context* instance = GetRawInstance();
     const std::string effectiveAppName = appName.empty()
         ? (instance != nullptr ? instance->mShortName : "libultraship")
         : appName;
