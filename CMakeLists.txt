@@ -10,6 +10,14 @@ endif()
 option(NON_PORTABLE "Build a non-portable version" OFF)
 option(DISABLE_DLL_LOADER "Disable dynamic library loading support" OFF)
 option(ENABLE_SCRIPTING "Enable TCC-based C mod compilation and scripting system" OFF)
+set(LUS_SDL2_TARGET "SDL2::SDL2" CACHE STRING
+    "SDL2 CMake target used by libultraship")
+set(LUS_GLEW_TARGET "GLEW::GLEW" CACHE STRING
+    "GLEW CMake target used by libultraship")
+set(LUS_SPDLOG_TARGET "spdlog::spdlog" CACHE STRING
+    "spdlog CMake target used by libultraship")
+set(LUS_LIBZIP_TARGET "libzip::zip" CACHE STRING
+    "libzip CMake target used by libultraship")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     option(SIGN_LIBRARY "Enable xcode signing" OFF)
@@ -47,6 +55,16 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 endif()
 
 include(cmake/dependencies/common.cmake)
+if(TARGET prism AND NOT LUS_SPDLOG_TARGET STREQUAL "spdlog::spdlog")
+    get_target_property(_lus_prism_links prism LINK_LIBRARIES)
+    list(REMOVE_ITEM _lus_prism_links spdlog::spdlog)
+    set_target_properties(prism PROPERTIES LINK_LIBRARIES "${_lus_prism_links}")
+    get_target_property(_lus_prism_interface prism INTERFACE_LINK_LIBRARIES)
+    list(REMOVE_ITEM _lus_prism_interface spdlog::spdlog)
+    set_target_properties(prism PROPERTIES
+        INTERFACE_LINK_LIBRARIES "${_lus_prism_interface}")
+    target_link_libraries(prism PUBLIC "${LUS_SPDLOG_TARGET}")
+endif()
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Android")
 	include(cmake/dependencies/android.cmake)

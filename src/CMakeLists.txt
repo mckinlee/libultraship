@@ -90,7 +90,11 @@ if (GFX_DEBUG_DISASSEMBLER)
 endif()
 
 find_package(libzip REQUIRED)
-target_link_libraries(libultraship PRIVATE libzip::zip)
+if(NOT TARGET "${LUS_LIBZIP_TARGET}")
+    message(FATAL_ERROR
+        "LUS_LIBZIP_TARGET does not name an available target: ${LUS_LIBZIP_TARGET}")
+endif()
+target_link_libraries(libultraship PRIVATE "${LUS_LIBZIP_TARGET}")
 
 find_package(nlohmann_json REQUIRED)
 target_link_libraries(libultraship PUBLIC nlohmann_json::nlohmann_json)
@@ -99,7 +103,11 @@ find_package(tinyxml2 REQUIRED)
 target_link_libraries(libultraship PUBLIC tinyxml2::tinyxml2)
 
 find_package(spdlog REQUIRED)
-target_link_libraries(libultraship PUBLIC spdlog::spdlog)
+if(NOT TARGET "${LUS_SPDLOG_TARGET}")
+    message(FATAL_ERROR
+        "LUS_SPDLOG_TARGET does not name an available target: ${LUS_SPDLOG_TARGET}")
+endif()
+target_link_libraries(libultraship PUBLIC "${LUS_SPDLOG_TARGET}")
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(THREADS_PREFER_PTHREAD_FLAG ON)

@@ -6,7 +6,15 @@ target_sources(ImGui
 )
 
 find_package(SDL2 CONFIG REQUIRED)
-target_link_libraries(ImGui PUBLIC SDL2::SDL2 SDL2::SDL2main)
+if(NOT TARGET "${LUS_SDL2_TARGET}")
+    message(FATAL_ERROR
+        "LUS_SDL2_TARGET does not name an available target: ${LUS_SDL2_TARGET}")
+endif()
+target_link_libraries(ImGui PUBLIC "${LUS_SDL2_TARGET}" SDL2::SDL2main)
 
 find_package(GLEW REQUIRED)
-target_link_libraries(ImGui PUBLIC opengl32 GLEW::GLEW)
+if(NOT TARGET "${LUS_GLEW_TARGET}")
+    message(FATAL_ERROR
+        "LUS_GLEW_TARGET does not name an available target: ${LUS_GLEW_TARGET}")
+endif()
+target_link_libraries(ImGui PUBLIC opengl32 "${LUS_GLEW_TARGET}")
