@@ -33,6 +33,15 @@ class SDLAxisDirectionToButtonMapping final : public ControllerButtonMapping, pu
     /** @brief Returns the unique string identifier for this mapping. */
     std::string GetButtonMappingId() override;
 
+    /**
+     * @brief Returns the strongest current value in the bound axis direction.
+     *
+     * The result spans the full 0–255 range and is zero while gamepad input is
+     * blocked. This lets controllers with analog buttons preserve axis travel
+     * while continuing to use this mapping's normal digital threshold.
+     */
+    uint8_t GetAnalogValue();
+
     /** @brief Persists this mapping to the application configuration. */
     void SaveToConfig() override;
 

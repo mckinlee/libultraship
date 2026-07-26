@@ -6,6 +6,8 @@
 #include "ship/Context.h"
 #include "ship/controller/controldeck/ControlDeck.h"
 
+#include <algorithm>
+
 namespace Ship {
 SDLAxisDirectionToButtonMapping::SDLAxisDirectionToButtonMapping(uint8_t portIndex, CONTROLLERBUTTONS_T bitmask,
                                                                  int32_t sdlControllerAxis, int32_t axisDirection)
@@ -53,6 +55,31 @@ int8_t SDLAxisDirectionToButtonMapping::GetMappingType() {
 std::string SDLAxisDirectionToButtonMapping::GetButtonMappingId() {
     return StringHelper::Sprintf("P%d-B%d-SDLA%d-AD%s", mPortIndex, mBitmask, mControllerAxis,
                                  mAxisDirection == 1 ? "P" : "N");
+}
+
+uint8_t SDLAxisDirectionToButtonMapping::GetAnalogValue() {
+    if (Context::GetRawInstance()->GetControlDeck()->GamepadGameInputBlocked()) {
+        return 0;
+    }
+
+    uint8_t strongestValue = 0;
+    for (const auto& [instanceId, gamepad] : Context::GetRawInstance()
+                                                   ->GetControlDeck()
+                                                   ->GetConnectedPhysicalDeviceManager()
+                                                   ->GetConnectedSDLGamepadsForPort(mPortIndex)) {
+        (void)instanceId;
+        const int32_t axisValue = SDL_GameControllerGetAxis(gamepad, mControllerAxis);
+        const int32_t magnitude =
+            mAxisDirection == POSITIVE ? std::max(axisValue, 0)
+                                       : std::max(-axisValue, 0);
+        const int32_t maximum =
+            mAxisDirection == POSITIVE ? SDL_JOYSTICK_AXIS_MAX
+                                       : -SDL_JOYSTICK_AXIS_MIN;
+        const auto normalized = static_cast<uint8_t>(
+            std::clamp((magnitude * 255 + maximum / 2) / maximum, 0, 255));
+        strongestValue = std::max(strongestValue, normalized);
+    }
+    return strongestValue;
 }
 
 void SDLAxisDirectionToButtonMapping::SaveToConfig() {
