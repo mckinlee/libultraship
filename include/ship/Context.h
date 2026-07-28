@@ -91,14 +91,6 @@ class Context {
                                                 const std::string& configFilePath);
 
     /**
-     * @brief Selects one absolute application-data root before subsystem initialization.
-     *
-     * The override is Context-scoped and is rejected after any subsystem has
-     * been initialized.
-     */
-    bool SetAppDirectoryPathOverride(const std::string& absolutePath);
-
-    /**
      * @brief Returns the platform-specific application bundle directory (e.g. the .app bundle on macOS).
      * @return Absolute path string, or an empty string on platforms without the concept of a bundle.
      */
@@ -301,7 +293,6 @@ class Context {
 #endif
 
     std::string mConfigFilePath;
-    std::string mAppDirectoryPathOverride;
     std::string mMainPath;
     std::string mPatchesPath;
 

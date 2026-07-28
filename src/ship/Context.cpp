@@ -41,26 +41,6 @@ void Context::DestroyInstance() {
     mContext = nullptr;
 }
 
-bool Context::SetAppDirectoryPathOverride(const std::string& absolutePath) {
-    if (mLogger || mConfig || mConsoleVariables || mResourceManager ||
-        mControlDeck || mCrashHandler || mWindow || mConsole || mAudio ||
-        mFileDropMgr || mEventSystem
-#ifdef ENABLE_SCRIPTING
-        || mScriptLoader || mKeystore
-#endif
-    ) {
-        return false;
-    }
-
-    const std::filesystem::path path(absolutePath);
-    if (path.empty() || !path.is_absolute() ||
-        path.lexically_normal() != path) {
-        return false;
-    }
-    mAppDirectoryPathOverride = path.string();
-    return true;
-}
-
 Context::~Context() {
     SPDLOG_TRACE("destruct context");
     if (auto window = GetWindow()) {
@@ -558,10 +538,6 @@ std::string Context::GetAppBundlePath() {
 
 std::string Context::GetAppDirectoryPath(const std::string& appName) {
     const Context* instance = GetRawInstance();
-    if (instance != nullptr &&
-        !instance->mAppDirectoryPathOverride.empty()) {
-        return instance->mAppDirectoryPathOverride;
-    }
 
 #if defined(__ANDROID__)
     const char* externaldir = SDL_AndroidGetExternalStoragePath();
@@ -573,13 +549,6 @@ std::string Context::GetAppDirectoryPath(const std::string& appName) {
 #ifdef __IOS__
     const char* home = getenv("HOME");
     return std::string(home) + "/Documents";
-#endif
-
-#if defined(_WIN32)
-    if (char* fpath = std::getenv("SHIP_HOME");
-        fpath != nullptr && fpath[0] != '\0') {
-        return std::string(fpath);
-    }
 #endif
 
 #if defined(__APPLE__)
