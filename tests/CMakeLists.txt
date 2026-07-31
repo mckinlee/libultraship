@@ -26,6 +26,7 @@ add_executable(libultraship_tests
     bitconverter_tests.cpp
     event_system_tests.cpp
     sound_matrix_decoder_tests.cpp
+    gx_texture_decoder_tests.cpp
     path_file_helper_tests.cpp
     archive_resource_tests.cpp
     glob_tests.cpp

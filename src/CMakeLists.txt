@@ -47,6 +47,10 @@ endif()
 
 add_subdirectory("fast")
 
+#=================== GX ===================
+
+add_subdirectory("gx")
+
 #=================== LUS ===================
 
 add_subdirectory("libultraship")
