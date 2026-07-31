@@ -94,7 +94,10 @@ void Fast3dGui::HandleWindowEvents(Fast::WindowEvent event) {
         case WindowBackend::FAST3D_SDL_METAL:
             ImGui_ImplSDL3_ProcessEvent(static_cast<const SDL_Event*>(event.Sdl.Event));
 #if defined(__ANDROID__) || defined(__IOS__)
-            Ship::Mobile::ImGuiProcessEvent(ImGui::GetIO().WantTextInput);
+            SDL_Window* sdlWindow = window->GetWindowBackend() == WindowBackend::FAST3D_SDL_OPENGL
+                                        ? static_cast<SDL_Window*>(mImpl.Opengl.Window)
+                                        : static_cast<SDL_Window*>(mImpl.Metal.Window);
+            Ship::Mobile::ImGuiProcessEvent(sdlWindow, ImGui::GetIO().WantTextInput);
 #endif
             break;
 #ifdef ENABLE_DX11

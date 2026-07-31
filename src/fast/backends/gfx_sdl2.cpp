@@ -773,10 +773,18 @@ bool GfxWindowBackendSDL2::IsRunning() {
 }
 
 void GfxWindowBackendSDL2::Destroy() {
-    // TODO: destroy _any_ resources used by SDL
-    SDL_GL_DestroyContext(mCtx);
-    SDL_DestroyWindow(mWnd);
-    SDL_DestroyRenderer(mRenderer);
+    if (mCtx != nullptr) {
+        SDL_GL_DestroyContext(mCtx);
+        mCtx = nullptr;
+    }
+    if (mRenderer != nullptr) {
+        SDL_DestroyRenderer(mRenderer);
+        mRenderer = nullptr;
+    }
+    if (mWnd != nullptr) {
+        SDL_DestroyWindow(mWnd);
+        mWnd = nullptr;
+    }
     SDL_Quit();
 }
 
