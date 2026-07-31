@@ -231,12 +231,26 @@ void GfxWindowBackendSDL2::SetFullscreenImpl(bool on, bool call_callback) {
 
     if (on) {
         // OTRTODO: Get mode from config.
-        const SDL_DisplayMode* mode = SDL_GetDesktopDisplayMode(display_in_use);
         const bool windowedFullscreen = mConsoleVariable->GetInteger(CVAR_SDL_WINDOWED_FULLSCREEN, 0) != 0;
-        if (windowedFullscreen || mode != nullptr) {
-            SDL_SetWindowFullscreenMode(mWnd, windowedFullscreen ? nullptr : mode);
-        } else {
+        SDL_DisplayMode fullscreenMode{};
+        const SDL_DisplayMode* mode = nullptr;
+
+        if (!windowedFullscreen) {
+            const SDL_DisplayMode* desktopMode = SDL_GetDesktopDisplayMode(display_in_use);
+            if (desktopMode == nullptr ||
+                !SDL_GetClosestFullscreenDisplayMode(display_in_use, desktopMode->w, desktopMode->h,
+                                                     desktopMode->refresh_rate, true, &fullscreenMode)) {
+                SPDLOG_ERROR("Failed to find an exclusive fullscreen mode.");
+                SPDLOG_ERROR(SDL_GetError());
+                return;
+            }
+            mode = &fullscreenMode;
+        }
+
+        if (!SDL_SetWindowFullscreenMode(mWnd, mode)) {
+            SPDLOG_ERROR("Failed to set the fullscreen display mode.");
             SPDLOG_ERROR(SDL_GetError());
+            return;
         }
     }
 
