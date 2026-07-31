@@ -91,7 +91,7 @@ void Fast3dGui::HandleWindowEvents(Fast::WindowEvent event) {
 
     switch (window->GetWindowBackend()) {
         case WindowBackend::FAST3D_SDL_OPENGL:
-        case WindowBackend::FAST3D_SDL_METAL:
+        case WindowBackend::FAST3D_SDL_METAL: {
             ImGui_ImplSDL3_ProcessEvent(static_cast<const SDL_Event*>(event.Sdl.Event));
 #if defined(__ANDROID__) || defined(__IOS__)
             SDL_Window* sdlWindow = window->GetWindowBackend() == WindowBackend::FAST3D_SDL_OPENGL
@@ -100,6 +100,7 @@ void Fast3dGui::HandleWindowEvents(Fast::WindowEvent event) {
             Ship::Mobile::ImGuiProcessEvent(sdlWindow, ImGui::GetIO().WantTextInput);
 #endif
             break;
+        }
 #ifdef ENABLE_DX11
         case WindowBackend::FAST3D_DXGI_DX11:
             ImGui_ImplWin32_WndProcHandler(static_cast<HWND>(event.Win32.Handle), event.Win32.Msg, event.Win32.Param1,
