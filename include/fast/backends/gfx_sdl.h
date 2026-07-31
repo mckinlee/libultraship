@@ -13,7 +13,7 @@ namespace Fast {
 class Fast3dGui;
 
 /**
- * @brief SDL2 implementation of the Fast3D window/input backend.
+ * @brief SDL implementation of the Fast3D window/input backend.
  *
  * Handles window creation, input polling, fullscreen transitions, framerate
  * pacing, and callback forwarding to the renderer/runtime.
