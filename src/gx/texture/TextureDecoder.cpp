@@ -50,6 +50,10 @@ bool TryMultiply(std::size_t lhs, std::size_t rhs, std::size_t& result) {
     return true;
 }
 
+std::size_t DivideRoundingUp(uint32_t value, uint32_t divisor) {
+    return (static_cast<std::size_t>(value) + divisor - 1) / divisor;
+}
+
 bool GetBlockLayout(TextureFormat format, BlockLayout& layout) {
     switch (format) {
         case TextureFormat::I4:
@@ -97,10 +101,13 @@ uint16_t ReadNative16(const uint8_t* data) {
 }
 
 Rgba DecodeRgb565(uint16_t value) {
+    const uint8_t red = static_cast<uint8_t>((value >> 11) & 0x1F);
+    const uint8_t green = static_cast<uint8_t>((value >> 5) & 0x3F);
+    const uint8_t blue = static_cast<uint8_t>(value & 0x1F);
     return {
-        static_cast<uint8_t>(((value >> 11) & 0x1F) * 255 / 31),
-        static_cast<uint8_t>(((value >> 5) & 0x3F) * 255 / 63),
-        static_cast<uint8_t>((value & 0x1F) * 255 / 31),
+        static_cast<uint8_t>((red << 3) | (red >> 2)),
+        static_cast<uint8_t>((green << 2) | (green >> 4)),
+        static_cast<uint8_t>((blue << 3) | (blue >> 2)),
         255,
     };
 }
@@ -130,8 +137,8 @@ Rgba DecodeRgb5A3(uint16_t value) {
     };
 }
 
-void StorePixel(std::span<uint8_t> destination, uint32_t width, uint32_t x, uint32_t y, const Rgba& color) {
-    const std::size_t offset = (static_cast<std::size_t>(y) * width + x) * 4;
+void StorePixel(std::span<uint8_t> destination, std::size_t width, std::size_t x, std::size_t y, const Rgba& color) {
+    const std::size_t offset = (y * width + x) * 4;
     std::copy(color.begin(), color.end(), destination.begin() + offset);
 }
 
@@ -158,13 +165,8 @@ Palette BuildPalette(const TlutView* tlut) {
                 palette[i] = DecodeRgb565(value);
                 break;
             case TlutFormat::IA8:
-                if (tlut->byteOrder == TlutByteOrder::BigEndian) {
-                    palette[i] = { static_cast<uint8_t>(value >> 8), static_cast<uint8_t>(value >> 8),
-                                   static_cast<uint8_t>(value >> 8), static_cast<uint8_t>(value) };
-                } else {
-                    palette[i] = { static_cast<uint8_t>(value), static_cast<uint8_t>(value),
-                                   static_cast<uint8_t>(value), static_cast<uint8_t>(value >> 8) };
-                }
+                palette[i] = { static_cast<uint8_t>(value), static_cast<uint8_t>(value), static_cast<uint8_t>(value),
+                               static_cast<uint8_t>(value >> 8) };
                 break;
         }
     }
@@ -172,15 +174,15 @@ Palette BuildPalette(const TlutView* tlut) {
 }
 
 void DecodeI4(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination) {
-    const uint32_t blockWidth = (width + 7) / 8;
-    const uint32_t blockHeight = (height + 7) / 8;
-    for (uint32_t blockY = 0; blockY < blockHeight; ++blockY) {
-        for (uint32_t blockX = 0; blockX < blockWidth; ++blockX) {
-            for (uint32_t y = 0; y < 8; ++y) {
-                for (uint32_t x = 0; x < 8; x += 2) {
+    const std::size_t blockWidth = DivideRoundingUp(width, 8);
+    const std::size_t blockHeight = DivideRoundingUp(height, 8);
+    for (std::size_t blockY = 0; blockY < blockHeight; ++blockY) {
+        for (std::size_t blockX = 0; blockX < blockWidth; ++blockX) {
+            for (std::size_t y = 0; y < 8; ++y) {
+                for (std::size_t x = 0; x < 8; x += 2) {
                     const uint8_t value = *source++;
-                    const uint32_t pixelX = blockX * 8 + x;
-                    const uint32_t pixelY = blockY * 8 + y;
+                    const std::size_t pixelX = blockX * 8 + x;
+                    const std::size_t pixelY = blockY * 8 + y;
                     const uint8_t first = static_cast<uint8_t>((value >> 4) | (value & 0xF0));
                     const uint8_t second = static_cast<uint8_t>((value & 0x0F) | ((value & 0x0F) << 4));
                     if (pixelX < width && pixelY < height) {
@@ -196,15 +198,15 @@ void DecodeI4(const uint8_t* source, uint32_t width, uint32_t height, std::span<
 }
 
 void DecodeI8(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination) {
-    const uint32_t blockWidth = (width + 7) / 8;
-    const uint32_t blockHeight = (height + 3) / 4;
-    for (uint32_t blockY = 0; blockY < blockHeight; ++blockY) {
-        for (uint32_t blockX = 0; blockX < blockWidth; ++blockX) {
-            for (uint32_t y = 0; y < 4; ++y) {
-                for (uint32_t x = 0; x < 8; ++x) {
+    const std::size_t blockWidth = DivideRoundingUp(width, 8);
+    const std::size_t blockHeight = DivideRoundingUp(height, 4);
+    for (std::size_t blockY = 0; blockY < blockHeight; ++blockY) {
+        for (std::size_t blockX = 0; blockX < blockWidth; ++blockX) {
+            for (std::size_t y = 0; y < 4; ++y) {
+                for (std::size_t x = 0; x < 8; ++x) {
                     const uint8_t value = *source++;
-                    const uint32_t pixelX = blockX * 8 + x;
-                    const uint32_t pixelY = blockY * 4 + y;
+                    const std::size_t pixelX = blockX * 8 + x;
+                    const std::size_t pixelY = blockY * 4 + y;
                     if (pixelX < width && pixelY < height) {
                         StorePixel(destination, width, pixelX, pixelY, { value, value, value, value });
                     }
@@ -215,15 +217,15 @@ void DecodeI8(const uint8_t* source, uint32_t width, uint32_t height, std::span<
 }
 
 void DecodeIa4(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination) {
-    const uint32_t blockWidth = (width + 7) / 8;
-    const uint32_t blockHeight = (height + 3) / 4;
-    for (uint32_t blockY = 0; blockY < blockHeight; ++blockY) {
-        for (uint32_t blockX = 0; blockX < blockWidth; ++blockX) {
-            for (uint32_t y = 0; y < 4; ++y) {
-                for (uint32_t x = 0; x < 8; ++x) {
+    const std::size_t blockWidth = DivideRoundingUp(width, 8);
+    const std::size_t blockHeight = DivideRoundingUp(height, 4);
+    for (std::size_t blockY = 0; blockY < blockHeight; ++blockY) {
+        for (std::size_t blockX = 0; blockX < blockWidth; ++blockX) {
+            for (std::size_t y = 0; y < 4; ++y) {
+                for (std::size_t x = 0; x < 8; ++x) {
                     const uint8_t value = *source++;
-                    const uint32_t pixelX = blockX * 8 + x;
-                    const uint32_t pixelY = blockY * 4 + y;
+                    const std::size_t pixelX = blockX * 8 + x;
+                    const std::size_t pixelY = blockY * 4 + y;
                     if (pixelX < width && pixelY < height) {
                         const uint8_t alpha = static_cast<uint8_t>((value >> 4) | (value & 0xF0));
                         const uint8_t intensity = static_cast<uint8_t>((value & 0x0F) | ((value & 0x0F) << 4));
@@ -236,16 +238,16 @@ void DecodeIa4(const uint8_t* source, uint32_t width, uint32_t height, std::span
 }
 
 void DecodeIa8(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination) {
-    const uint32_t blockWidth = (width + 3) / 4;
-    const uint32_t blockHeight = (height + 3) / 4;
-    for (uint32_t blockY = 0; blockY < blockHeight; ++blockY) {
-        for (uint32_t blockX = 0; blockX < blockWidth; ++blockX) {
-            for (uint32_t y = 0; y < 4; ++y) {
-                for (uint32_t x = 0; x < 4; ++x) {
+    const std::size_t blockWidth = DivideRoundingUp(width, 4);
+    const std::size_t blockHeight = DivideRoundingUp(height, 4);
+    for (std::size_t blockY = 0; blockY < blockHeight; ++blockY) {
+        for (std::size_t blockX = 0; blockX < blockWidth; ++blockX) {
+            for (std::size_t y = 0; y < 4; ++y) {
+                for (std::size_t x = 0; x < 4; ++x) {
                     const uint8_t alpha = *source++;
                     const uint8_t intensity = *source++;
-                    const uint32_t pixelX = blockX * 4 + x;
-                    const uint32_t pixelY = blockY * 4 + y;
+                    const std::size_t pixelX = blockX * 4 + x;
+                    const std::size_t pixelY = blockY * 4 + y;
                     if (pixelX < width && pixelY < height) {
                         StorePixel(destination, width, pixelX, pixelY, { intensity, intensity, intensity, alpha });
                     }
@@ -256,16 +258,16 @@ void DecodeIa8(const uint8_t* source, uint32_t width, uint32_t height, std::span
 }
 
 void DecodeRgb565(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination) {
-    const uint32_t blockWidth = (width + 3) / 4;
-    const uint32_t blockHeight = (height + 3) / 4;
-    for (uint32_t blockY = 0; blockY < blockHeight; ++blockY) {
-        for (uint32_t blockX = 0; blockX < blockWidth; ++blockX) {
-            for (uint32_t y = 0; y < 4; ++y) {
-                for (uint32_t x = 0; x < 4; ++x) {
+    const std::size_t blockWidth = DivideRoundingUp(width, 4);
+    const std::size_t blockHeight = DivideRoundingUp(height, 4);
+    for (std::size_t blockY = 0; blockY < blockHeight; ++blockY) {
+        for (std::size_t blockX = 0; blockX < blockWidth; ++blockX) {
+            for (std::size_t y = 0; y < 4; ++y) {
+                for (std::size_t x = 0; x < 4; ++x) {
                     const Rgba color = DecodeRgb565(ReadBigEndian16(source));
                     source += 2;
-                    const uint32_t pixelX = blockX * 4 + x;
-                    const uint32_t pixelY = blockY * 4 + y;
+                    const std::size_t pixelX = blockX * 4 + x;
+                    const std::size_t pixelY = blockY * 4 + y;
                     if (pixelX < width && pixelY < height) {
                         StorePixel(destination, width, pixelX, pixelY, color);
                     }
@@ -276,16 +278,16 @@ void DecodeRgb565(const uint8_t* source, uint32_t width, uint32_t height, std::s
 }
 
 void DecodeRgb5A3(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination) {
-    const uint32_t blockWidth = (width + 3) / 4;
-    const uint32_t blockHeight = (height + 3) / 4;
-    for (uint32_t blockY = 0; blockY < blockHeight; ++blockY) {
-        for (uint32_t blockX = 0; blockX < blockWidth; ++blockX) {
-            for (uint32_t y = 0; y < 4; ++y) {
-                for (uint32_t x = 0; x < 4; ++x) {
+    const std::size_t blockWidth = DivideRoundingUp(width, 4);
+    const std::size_t blockHeight = DivideRoundingUp(height, 4);
+    for (std::size_t blockY = 0; blockY < blockHeight; ++blockY) {
+        for (std::size_t blockX = 0; blockX < blockWidth; ++blockX) {
+            for (std::size_t y = 0; y < 4; ++y) {
+                for (std::size_t x = 0; x < 4; ++x) {
                     const Rgba color = DecodeRgb5A3(ReadBigEndian16(source));
                     source += 2;
-                    const uint32_t pixelX = blockX * 4 + x;
-                    const uint32_t pixelY = blockY * 4 + y;
+                    const std::size_t pixelX = blockX * 4 + x;
+                    const std::size_t pixelY = blockY * 4 + y;
                     if (pixelX < width && pixelY < height) {
                         StorePixel(destination, width, pixelX, pixelY, color);
                     }
@@ -296,22 +298,22 @@ void DecodeRgb5A3(const uint8_t* source, uint32_t width, uint32_t height, std::s
 }
 
 void DecodeRgba8(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination) {
-    const uint32_t blockWidth = (width + 3) / 4;
-    const uint32_t blockHeight = (height + 3) / 4;
-    for (uint32_t blockY = 0; blockY < blockHeight; ++blockY) {
-        for (uint32_t blockX = 0; blockX < blockWidth; ++blockX) {
+    const std::size_t blockWidth = DivideRoundingUp(width, 4);
+    const std::size_t blockHeight = DivideRoundingUp(height, 4);
+    for (std::size_t blockY = 0; blockY < blockHeight; ++blockY) {
+        for (std::size_t blockX = 0; blockX < blockWidth; ++blockX) {
             std::array<std::array<uint8_t, 2>, 16> alphaRed{};
             for (auto& pixel : alphaRed) {
                 pixel[0] = *source++;
                 pixel[1] = *source++;
             }
-            for (uint32_t i = 0; i < 16; ++i) {
-                const uint32_t x = i % 4;
-                const uint32_t y = i / 4;
+            for (std::size_t i = 0; i < 16; ++i) {
+                const std::size_t x = i % 4;
+                const std::size_t y = i / 4;
                 const uint8_t green = *source++;
                 const uint8_t blue = *source++;
-                const uint32_t pixelX = blockX * 4 + x;
-                const uint32_t pixelY = blockY * 4 + y;
+                const std::size_t pixelX = blockX * 4 + x;
+                const std::size_t pixelY = blockY * 4 + y;
                 if (pixelX < width && pixelY < height) {
                     StorePixel(destination, width, pixelX, pixelY, { alphaRed[i][1], green, blue, alphaRed[i][0] });
                 }
@@ -320,14 +322,18 @@ void DecodeRgba8(const uint8_t* source, uint32_t width, uint32_t height, std::sp
     }
 }
 
+uint8_t BlendCmpr(uint8_t primary, uint8_t secondary) {
+    return static_cast<uint8_t>((primary * 5 + secondary * 3) >> 3);
+}
+
 void DecodeCmpr(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination) {
-    const uint32_t blockWidth = (width + 7) / 8;
-    const uint32_t blockHeight = (height + 7) / 8;
-    for (uint32_t blockY = 0; blockY < blockHeight; ++blockY) {
-        for (uint32_t blockX = 0; blockX < blockWidth; ++blockX) {
-            for (uint32_t subBlock = 0; subBlock < 4; ++subBlock) {
-                const uint32_t subX = (subBlock & 1) * 4;
-                const uint32_t subY = (subBlock >> 1) * 4;
+    const std::size_t blockWidth = DivideRoundingUp(width, 8);
+    const std::size_t blockHeight = DivideRoundingUp(height, 8);
+    for (std::size_t blockY = 0; blockY < blockHeight; ++blockY) {
+        for (std::size_t blockX = 0; blockX < blockWidth; ++blockX) {
+            for (std::size_t subBlock = 0; subBlock < 4; ++subBlock) {
+                const std::size_t subX = (subBlock & 1) * 4;
+                const std::size_t subY = (subBlock >> 1) * 4;
                 const uint16_t color0 = ReadBigEndian16(source);
                 const uint16_t color1 = ReadBigEndian16(source + 2);
                 source += 4;
@@ -337,8 +343,8 @@ void DecodeCmpr(const uint8_t* source, uint32_t width, uint32_t height, std::spa
                 palette[1] = DecodeRgb565(color1);
                 if (color0 > color1) {
                     for (std::size_t channel = 0; channel < 3; ++channel) {
-                        palette[2][channel] = static_cast<uint8_t>((2 * palette[0][channel] + palette[1][channel]) / 3);
-                        palette[3][channel] = static_cast<uint8_t>((palette[0][channel] + 2 * palette[1][channel]) / 3);
+                        palette[2][channel] = BlendCmpr(palette[0][channel], palette[1][channel]);
+                        palette[3][channel] = BlendCmpr(palette[1][channel], palette[0][channel]);
                     }
                     palette[2][3] = palette[3][3] = 255;
                 } else {
@@ -346,15 +352,15 @@ void DecodeCmpr(const uint8_t* source, uint32_t width, uint32_t height, std::spa
                         palette[2][channel] = static_cast<uint8_t>((palette[0][channel] + palette[1][channel]) / 2);
                     }
                     palette[2][3] = 255;
-                    palette[3] = { 0, 0, 0, 0 };
+                    palette[3] = { palette[2][0], palette[2][1], palette[2][2], 0 };
                 }
 
-                for (uint32_t y = 0; y < 4; ++y) {
+                for (std::size_t y = 0; y < 4; ++y) {
                     const uint8_t row = *source++;
-                    for (uint32_t x = 0; x < 4; ++x) {
+                    for (std::size_t x = 0; x < 4; ++x) {
                         const uint8_t index = static_cast<uint8_t>((row >> (6 - x * 2)) & 3);
-                        const uint32_t pixelX = blockX * 8 + subX + x;
-                        const uint32_t pixelY = blockY * 8 + subY + y;
+                        const std::size_t pixelX = blockX * 8 + subX + x;
+                        const std::size_t pixelY = blockY * 8 + subY + y;
                         if (pixelX < width && pixelY < height) {
                             StorePixel(destination, width, pixelX, pixelY, palette[index]);
                         }
@@ -367,15 +373,15 @@ void DecodeCmpr(const uint8_t* source, uint32_t width, uint32_t height, std::spa
 
 void DecodeC4(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination,
               const Palette& palette) {
-    const uint32_t blockWidth = (width + 7) / 8;
-    const uint32_t blockHeight = (height + 7) / 8;
-    for (uint32_t blockY = 0; blockY < blockHeight; ++blockY) {
-        for (uint32_t blockX = 0; blockX < blockWidth; ++blockX) {
-            for (uint32_t y = 0; y < 8; ++y) {
-                for (uint32_t x = 0; x < 8; x += 2) {
+    const std::size_t blockWidth = DivideRoundingUp(width, 8);
+    const std::size_t blockHeight = DivideRoundingUp(height, 8);
+    for (std::size_t blockY = 0; blockY < blockHeight; ++blockY) {
+        for (std::size_t blockX = 0; blockX < blockWidth; ++blockX) {
+            for (std::size_t y = 0; y < 8; ++y) {
+                for (std::size_t x = 0; x < 8; x += 2) {
                     const uint8_t value = *source++;
-                    const uint32_t pixelX = blockX * 8 + x;
-                    const uint32_t pixelY = blockY * 8 + y;
+                    const std::size_t pixelX = blockX * 8 + x;
+                    const std::size_t pixelY = blockY * 8 + y;
                     if (pixelX < width && pixelY < height) {
                         StorePixel(destination, width, pixelX, pixelY, palette[value >> 4]);
                     }
@@ -390,15 +396,15 @@ void DecodeC4(const uint8_t* source, uint32_t width, uint32_t height, std::span<
 
 void DecodeC8(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination,
               const Palette& palette) {
-    const uint32_t blockWidth = (width + 7) / 8;
-    const uint32_t blockHeight = (height + 3) / 4;
-    for (uint32_t blockY = 0; blockY < blockHeight; ++blockY) {
-        for (uint32_t blockX = 0; blockX < blockWidth; ++blockX) {
-            for (uint32_t y = 0; y < 4; ++y) {
-                for (uint32_t x = 0; x < 8; ++x) {
+    const std::size_t blockWidth = DivideRoundingUp(width, 8);
+    const std::size_t blockHeight = DivideRoundingUp(height, 4);
+    for (std::size_t blockY = 0; blockY < blockHeight; ++blockY) {
+        for (std::size_t blockX = 0; blockX < blockWidth; ++blockX) {
+            for (std::size_t y = 0; y < 4; ++y) {
+                for (std::size_t x = 0; x < 8; ++x) {
                     const uint8_t index = *source++;
-                    const uint32_t pixelX = blockX * 8 + x;
-                    const uint32_t pixelY = blockY * 4 + y;
+                    const std::size_t pixelX = blockX * 8 + x;
+                    const std::size_t pixelY = blockY * 4 + y;
                     if (pixelX < width && pixelY < height) {
                         StorePixel(destination, width, pixelX, pixelY, palette[index]);
                     }
@@ -420,8 +426,8 @@ std::size_t GetEncodedTextureSize(uint32_t width, uint32_t height, TextureFormat
         return 0;
     }
 
-    const std::size_t blockWidth = (static_cast<std::size_t>(width) + layout.width - 1) / layout.width;
-    const std::size_t blockHeight = (static_cast<std::size_t>(height) + layout.height - 1) / layout.height;
+    const std::size_t blockWidth = DivideRoundingUp(width, layout.width);
+    const std::size_t blockHeight = DivideRoundingUp(height, layout.height);
     std::size_t blockCount;
     std::size_t byteCount;
     if (!TryMultiply(blockWidth, blockHeight, blockCount) || !TryMultiply(blockCount, layout.bytes, byteCount)) {

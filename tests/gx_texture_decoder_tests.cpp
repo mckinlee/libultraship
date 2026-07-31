@@ -38,6 +38,10 @@ TEST(GxTextureDecoder, ReportsTiledSourceAndLinearDestinationSizes) {
     EXPECT_EQ(GX::GetDecodedTextureSize(3, 2), 24);
     EXPECT_EQ(GX::GetEncodedTextureSize(UINT32_MAX, UINT32_MAX, GX::TextureFormat::RGBA8), 0);
     EXPECT_EQ(GX::GetDecodedTextureSize(UINT32_MAX, UINT32_MAX), 0);
+    if constexpr (sizeof(std::size_t) >= sizeof(uint64_t)) {
+        EXPECT_EQ(GX::GetEncodedTextureSize(UINT32_MAX, 1, GX::TextureFormat::I4), 17179869184ULL);
+        EXPECT_EQ(GX::GetDecodedTextureSize(UINT32_MAX, 1), 17179869180ULL);
+    }
 }
 
 TEST(GxTextureDecoder, DecodesIntensityFormats) {
@@ -68,10 +72,10 @@ TEST(GxTextureDecoder, DecodesIntensityAlphaFormats) {
 
 TEST(GxTextureDecoder, DecodesRgb565) {
     std::vector<uint8_t> source(32);
-    source[0] = 0xF8;
+    source[0] = 0x20;
     source[1] = 0x00;
     const auto decoded = Decode(source, 1, 1, GX::TextureFormat::RGB565);
-    EXPECT_EQ(Pixel(decoded), (std::array<uint8_t, 4>{ 255, 0, 0, 255 }));
+    EXPECT_EQ(Pixel(decoded), (std::array<uint8_t, 4>{ 33, 0, 0, 255 }));
 }
 
 TEST(GxTextureDecoder, DecodesBothRgb5A3EncodingsWithBitReplication) {
@@ -119,6 +123,14 @@ TEST(GxTextureDecoder, DecodesC8WithNativeEndianIa8Tlut) {
     EXPECT_EQ(Pixel(decoded), (std::array<uint8_t, 4>{ 0xB2, 0xB2, 0xB2, 0xA1 }));
 }
 
+TEST(GxTextureDecoder, DecodesC8WithBigEndianIa8Tlut) {
+    std::vector<uint8_t> source(32);
+    std::array<uint8_t, 2> palette{ 0xA1, 0xB2 };
+    const GX::TlutView tlut{ palette, GX::TlutFormat::IA8, 1, GX::TlutByteOrder::BigEndian };
+    const auto decoded = Decode(source, 1, 1, GX::TextureFormat::C8, &tlut);
+    EXPECT_EQ(Pixel(decoded), (std::array<uint8_t, 4>{ 0xB2, 0xB2, 0xB2, 0xA1 }));
+}
+
 TEST(GxTextureDecoder, DecodesRgb565Tlut) {
     std::vector<uint8_t> source(32);
     std::array<uint8_t, 2> palette{ 0x00, 0x1F };
@@ -138,15 +150,16 @@ TEST(GxTextureDecoder, DecodesCmprSubBlocks) {
     std::vector<uint8_t> source(32);
     source[0] = 0xF8;
     source[1] = 0x00;
+    source[4] = 0x80;
     const auto decoded = Decode(source, 1, 1, GX::TextureFormat::CMPR);
-    EXPECT_EQ(Pixel(decoded), (std::array<uint8_t, 4>{ 255, 0, 0, 255 }));
+    EXPECT_EQ(Pixel(decoded), (std::array<uint8_t, 4>{ 159, 0, 0, 255 }));
 
     source.assign(32, 0);
     source[2] = 0xFF;
     source[3] = 0xFF;
     source[4] = 0xC0;
     const auto transparent = Decode(source, 1, 1, GX::TextureFormat::CMPR);
-    EXPECT_EQ(Pixel(transparent), (std::array<uint8_t, 4>{ 0, 0, 0, 0 }));
+    EXPECT_EQ(Pixel(transparent), (std::array<uint8_t, 4>{ 127, 127, 127, 0 }));
 }
 
 TEST(GxTextureDecoder, ReadsPartialEdgeTilesInBlockOrder) {
