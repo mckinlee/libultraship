@@ -142,22 +142,14 @@ void StorePixel(std::span<uint8_t> destination, std::size_t width, std::size_t x
     std::copy(color.begin(), color.end(), destination.begin() + offset);
 }
 
-Palette BuildPalette(const TlutView* tlut) {
+Palette BuildPalette(const TlutView& tlut) {
     Palette palette{};
-    for (std::size_t i = 0; i < palette.size(); ++i) {
-        palette[i] = { static_cast<uint8_t>(i), static_cast<uint8_t>(i), static_cast<uint8_t>(i), 255 };
-    }
-
-    if (tlut == nullptr || tlut->entryCount == 0) {
-        return palette;
-    }
-
-    const std::size_t entryCount = std::min(tlut->entryCount, palette.size());
+    const std::size_t entryCount = std::min(tlut.entryCount, palette.size());
     for (std::size_t i = 0; i < entryCount; ++i) {
-        const uint8_t* entry = tlut->data.data() + i * 2;
+        const uint8_t* entry = tlut.data.data() + i * 2;
         const uint16_t value =
-            tlut->byteOrder == TlutByteOrder::BigEndian ? ReadBigEndian16(entry) : ReadNative16(entry);
-        switch (tlut->format) {
+            tlut.byteOrder == TlutByteOrder::BigEndian ? ReadBigEndian16(entry) : ReadNative16(entry);
+        switch (tlut.format) {
             case TlutFormat::RGB5A3:
                 palette[i] = DecodeRgb5A3(value);
                 break;
@@ -371,8 +363,8 @@ void DecodeCmpr(const uint8_t* source, uint32_t width, uint32_t height, std::spa
     }
 }
 
-void DecodeC4(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination,
-              const Palette& palette) {
+bool DecodeC4(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination,
+              std::span<const Rgba> palette) {
     const std::size_t blockWidth = DivideRoundingUp(width, 8);
     const std::size_t blockHeight = DivideRoundingUp(height, 8);
     for (std::size_t blockY = 0; blockY < blockHeight; ++blockY) {
@@ -383,19 +375,28 @@ void DecodeC4(const uint8_t* source, uint32_t width, uint32_t height, std::span<
                     const std::size_t pixelX = blockX * 8 + x;
                     const std::size_t pixelY = blockY * 8 + y;
                     if (pixelX < width && pixelY < height) {
-                        StorePixel(destination, width, pixelX, pixelY, palette[value >> 4]);
+                        const uint8_t index = value >> 4;
+                        if (index >= palette.size()) {
+                            return false;
+                        }
+                        StorePixel(destination, width, pixelX, pixelY, palette[index]);
                     }
                     if (pixelX + 1 < width && pixelY < height) {
-                        StorePixel(destination, width, pixelX + 1, pixelY, palette[value & 0x0F]);
+                        const uint8_t index = value & 0x0F;
+                        if (index >= palette.size()) {
+                            return false;
+                        }
+                        StorePixel(destination, width, pixelX + 1, pixelY, palette[index]);
                     }
                 }
             }
         }
     }
+    return true;
 }
 
-void DecodeC8(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination,
-              const Palette& palette) {
+bool DecodeC8(const uint8_t* source, uint32_t width, uint32_t height, std::span<uint8_t> destination,
+              std::span<const Rgba> palette) {
     const std::size_t blockWidth = DivideRoundingUp(width, 8);
     const std::size_t blockHeight = DivideRoundingUp(height, 4);
     for (std::size_t blockY = 0; blockY < blockHeight; ++blockY) {
@@ -406,12 +407,16 @@ void DecodeC8(const uint8_t* source, uint32_t width, uint32_t height, std::span<
                     const std::size_t pixelX = blockX * 8 + x;
                     const std::size_t pixelY = blockY * 4 + y;
                     if (pixelX < width && pixelY < height) {
+                        if (index >= palette.size()) {
+                            return false;
+                        }
                         StorePixel(destination, width, pixelX, pixelY, palette[index]);
                     }
                 }
             }
         }
     }
+    return true;
 }
 
 } // namespace
@@ -469,9 +474,14 @@ TextureDecodeError DecodeTexture(std::span<const uint8_t> source, uint32_t width
     if (indexed && tlut != nullptr && !IsSupportedTlutFormat(tlut->format)) {
         return TextureDecodeError::UnsupportedTlutFormat;
     }
-    if (indexed && tlut != nullptr && tlut->entryCount > 0) {
+    if (indexed && (tlut == nullptr || tlut->entryCount == 0)) {
+        return TextureDecodeError::MissingTlut;
+    }
+    std::size_t tlutEntryCount = 0;
+    if (indexed) {
+        tlutEntryCount = std::min<std::size_t>(tlut->entryCount, 256);
         std::size_t tlutSize;
-        if (!TryMultiply(std::min<std::size_t>(tlut->entryCount, 256), 2, tlutSize) || tlut->data.size() < tlutSize) {
+        if (!TryMultiply(tlutEntryCount, 2, tlutSize) || tlut->data.size() < tlutSize) {
             return TextureDecodeError::TlutTooSmall;
         }
     }
@@ -479,6 +489,8 @@ TextureDecodeError DecodeTexture(std::span<const uint8_t> source, uint32_t width
     destination = destination.first(decodedSize);
     std::fill(destination.begin(), destination.end(), 0);
     const uint8_t* data = source.data();
+    const Palette palette = indexed ? BuildPalette(*tlut) : Palette{};
+    const std::span<const Rgba> paletteEntries(palette.data(), tlutEntryCount);
     switch (format) {
         case TextureFormat::I4:
             DecodeI4(data, width, height, destination);
@@ -502,10 +514,16 @@ TextureDecodeError DecodeTexture(std::span<const uint8_t> source, uint32_t width
             DecodeRgba8(data, width, height, destination);
             break;
         case TextureFormat::C4:
-            DecodeC4(data, width, height, destination, BuildPalette(tlut));
+            if (!DecodeC4(data, width, height, destination, paletteEntries)) {
+                std::fill(destination.begin(), destination.end(), 0);
+                return TextureDecodeError::TlutIndexOutOfRange;
+            }
             break;
         case TextureFormat::C8:
-            DecodeC8(data, width, height, destination, BuildPalette(tlut));
+            if (!DecodeC8(data, width, height, destination, paletteEntries)) {
+                std::fill(destination.begin(), destination.end(), 0);
+                return TextureDecodeError::TlutIndexOutOfRange;
+            }
             break;
         case TextureFormat::CMPR:
             DecodeCmpr(data, width, height, destination);

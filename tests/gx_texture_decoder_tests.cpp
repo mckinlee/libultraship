@@ -139,11 +139,29 @@ TEST(GxTextureDecoder, DecodesRgb565Tlut) {
     EXPECT_EQ(Pixel(decoded), (std::array<uint8_t, 4>{ 0, 0, 255, 255 }));
 }
 
-TEST(GxTextureDecoder, UsesGrayscalePaletteWhenIndexedTextureHasNoTlut) {
+TEST(GxTextureDecoder, RequiresTlutEntriesForIndexedTextures) {
     std::vector<uint8_t> source(32);
-    source[0] = 0x30;
-    const auto decoded = Decode(source, 1, 1, GX::TextureFormat::C4);
-    EXPECT_EQ(Pixel(decoded), (std::array<uint8_t, 4>{ 3, 3, 3, 255 }));
+    std::vector<uint8_t> destination(4, 0xFF);
+    EXPECT_EQ(GX::DecodeTexture(source, 1, 1, GX::TextureFormat::C4, destination), GX::TextureDecodeError::MissingTlut);
+
+    const GX::TlutView emptyTlut{};
+    EXPECT_EQ(GX::DecodeTexture(source, 1, 1, GX::TextureFormat::C8, destination, &emptyTlut),
+              GX::TextureDecodeError::MissingTlut);
+
+    std::array<uint8_t, 2> palette{};
+    const GX::TlutView tlut{ palette, GX::TlutFormat::IA8, 1, GX::TlutByteOrder::BigEndian };
+    source[0] = 0x10;
+    EXPECT_EQ(GX::DecodeTexture(source, 1, 1, GX::TextureFormat::C4, destination, &tlut),
+              GX::TextureDecodeError::TlutIndexOutOfRange);
+    EXPECT_EQ(destination, (std::vector<uint8_t>{ 0, 0, 0, 0 }));
+
+    source[0] = 1;
+    EXPECT_EQ(GX::DecodeTexture(source, 1, 1, GX::TextureFormat::C8, destination, &tlut),
+              GX::TextureDecodeError::TlutIndexOutOfRange);
+
+    source.assign(32, 0xFF);
+    source[0] = 0x0F;
+    EXPECT_EQ(GX::DecodeTexture(source, 1, 1, GX::TextureFormat::C4, destination, &tlut), GX::TextureDecodeError::None);
 }
 
 TEST(GxTextureDecoder, DecodesCmprSubBlocks) {

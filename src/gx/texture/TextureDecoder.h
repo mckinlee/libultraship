@@ -44,7 +44,9 @@ enum class TextureDecodeError {
     UnsupportedTlutFormat,
     SourceTooSmall,
     DestinationTooSmall,
+    MissingTlut,
     TlutTooSmall,
+    TlutIndexOutOfRange,
 };
 
 std::size_t GetEncodedTextureSize(uint32_t width, uint32_t height, TextureFormat format);
