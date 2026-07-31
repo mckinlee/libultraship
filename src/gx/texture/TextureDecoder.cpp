@@ -1,5 +1,5 @@
-// The texture decoding routines in this file are derived from the Township PC
-// port by FlyingMeta and are used under the following license:
+// The texture decoding routines in this file are derived from ACGC-PC-Port by
+// FlyingMeta and are used under the following license:
 //
 // MIT License
 //
