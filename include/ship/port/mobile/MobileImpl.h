@@ -1,10 +1,5 @@
 #pragma once
 
-#include <cstdint>
-#include <string>
-
-#include <imgui.h>
-
 struct SDL_Window;
 
 namespace Ship {
