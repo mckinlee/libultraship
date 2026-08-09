@@ -8,6 +8,9 @@
 #include "ship/window/Window.h"
 #include "libultraship/libultra/controller.h"
 
+#include <algorithm>
+#include <cstdint>
+
 #define SCALE_IMGUI_SIZE(value) ((value / 13.0f) * ImGui::GetFontSize())
 
 namespace LUS {
@@ -31,9 +34,6 @@ void InputEditorWindow::OnInit(const nlohmann::json& initArgs) {
     mRumbleTimer = INT32_MAX;
     mRumbleMappingToTest = nullptr;
     mInputEditorPopupOpen = false;
-
-    mButtonsBitmasks = { BTN_A, BTN_B, BTN_START, BTN_L, BTN_R, BTN_Z, BTN_CUP, BTN_CDOWN, BTN_CLEFT, BTN_CRIGHT };
-    mDpadBitmasks = { BTN_DUP, BTN_DDOWN, BTN_DLEFT, BTN_DRIGHT };
 }
 
 #define INPUT_EDITOR_WINDOW_GAME_INPUT_BLOCK_ID 95237929
@@ -1199,6 +1199,16 @@ void InputEditorWindow::DrawClearAllButton(uint8_t portIndex) {
 
 void InputEditorWindow::DrawPortTab(uint8_t portIndex) {
     if (ImGui::BeginTabItem(StringHelper::Sprintf("Port %d###port%d", portIndex + 1, portIndex).c_str())) {
+        const auto schemaValidation = mControlDeck->ValidateInputEditorSchema();
+        const auto controller = mControlDeck->GetControllerByPort(portIndex);
+        if (!schemaValidation.valid || controller == nullptr) {
+            const std::string message =
+                !schemaValidation.valid ? schemaValidation.error : "The controller port is unavailable.";
+            ImGui::TextDisabled("Input Editor unavailable: %s", message.c_str());
+            ImGui::EndTabItem();
+            return;
+        }
+
         DrawClearAllButton(portIndex);
         DrawSetDefaultsButton(portIndex);
         DrawDeviceToggles(portIndex);
@@ -1210,47 +1220,33 @@ void InputEditorWindow::DrawPortTab(uint8_t portIndex) {
         ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
 
-        if (ImGui::CollapsingHeader("Buttons", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
-            DrawButtonLine("A", portIndex, BTN_A, CHIP_COLOR_N64_BLUE);
-            DrawButtonLine("B", portIndex, BTN_B, CHIP_COLOR_N64_GREEN);
-            DrawButtonLine("Start", portIndex, BTN_START, CHIP_COLOR_N64_RED);
-            DrawButtonLine("L", portIndex, BTN_L);
-            DrawButtonLine("R", portIndex, BTN_R);
-            DrawButtonLine("Z", portIndex, BTN_Z);
-            DrawButtonLine(StringHelper::Sprintf("C %s", ICON_FA_ARROW_UP).c_str(), portIndex, BTN_CUP,
-                           CHIP_COLOR_N64_YELLOW);
-            DrawButtonLine(StringHelper::Sprintf("C %s", ICON_FA_ARROW_DOWN).c_str(), portIndex, BTN_CDOWN,
-                           CHIP_COLOR_N64_YELLOW);
-            DrawButtonLine(StringHelper::Sprintf("C %s", ICON_FA_ARROW_LEFT).c_str(), portIndex, BTN_CLEFT,
-                           CHIP_COLOR_N64_YELLOW);
-            DrawButtonLine(StringHelper::Sprintf("C %s", ICON_FA_ARROW_RIGHT).c_str(), portIndex, BTN_CRIGHT,
-                           CHIP_COLOR_N64_YELLOW);
+        const auto& schema = mControlDeck->GetInputEditorSchema();
+        for (const auto& group : schema.buttonGroups) {
+            const ImGuiTreeNodeFlags flags = group.defaultOpen ? ImGuiTreeNodeFlags_DefaultOpen : 0;
+            if (ImGui::CollapsingHeader(group.label.c_str(), NULL, flags)) {
+                for (const auto& button : group.buttons) {
+                    DrawButtonLine(button.label.c_str(), portIndex, button.bitmask);
+                }
+            }
         }
 
-        if (ImGui::CollapsingHeader("D-Pad", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
-            DrawButtonLine(StringHelper::Sprintf("%s", ICON_FA_ARROW_UP).c_str(), portIndex, BTN_DUP);
-            DrawButtonLine(StringHelper::Sprintf("%s", ICON_FA_ARROW_DOWN).c_str(), portIndex, BTN_DDOWN);
-            DrawButtonLine(StringHelper::Sprintf("%s", ICON_FA_ARROW_LEFT).c_str(), portIndex, BTN_DLEFT);
-            DrawButtonLine(StringHelper::Sprintf("%s", ICON_FA_ARROW_RIGHT).c_str(), portIndex, BTN_DRIGHT);
+        for (const auto& stick : schema.sticks) {
+            const ImGuiTreeNodeFlags flags = stick.defaultOpen ? ImGuiTreeNodeFlags_DefaultOpen : 0;
+            if (ImGui::CollapsingHeader(stick.label.c_str(), NULL, flags)) {
+                DrawStickSection(portIndex, stick.index, stick.index,
+                                 stick.index == Ship::RIGHT_STICK ? CHIP_COLOR_N64_YELLOW : CHIP_COLOR_N64_GREY);
+            }
         }
 
-        if (ImGui::CollapsingHeader("Analog Stick", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
-            DrawStickSection(portIndex, Ship::LEFT, 0);
-        }
-
-        if (ImGui::CollapsingHeader("Additional (\"Right\") Stick")) {
-            DrawStickSection(portIndex, Ship::RIGHT, 1, CHIP_COLOR_N64_YELLOW);
-        }
-
-        if (ImGui::CollapsingHeader("Rumble")) {
+        if (schema.capabilities.rumble && ImGui::CollapsingHeader("Rumble")) {
             DrawRumbleSection(portIndex);
         }
 
-        if (ImGui::CollapsingHeader("Gyro")) {
+        if (schema.capabilities.gyro && ImGui::CollapsingHeader("Gyro")) {
             DrawGyroSection(portIndex);
         }
 
-        if (ImGui::CollapsingHeader("LEDs")) {
+        if (schema.capabilities.led && ImGui::CollapsingHeader("LEDs")) {
             DrawLEDSection(portIndex);
         }
 
@@ -1352,9 +1348,19 @@ void InputEditorWindow::DrawSetDefaultsButton(uint8_t portIndex) {
 }
 
 void InputEditorWindow::DrawElement() {
+    if (mControlDeck == nullptr) {
+        ImGui::TextDisabled("Input Editor unavailable: no ControlDeck was provided.");
+        return;
+    }
+    const auto schemaValidation = mControlDeck->ValidateInputEditorSchema();
+    if (!schemaValidation.valid) {
+        ImGui::TextDisabled("Input Editor unavailable: %s", schemaValidation.error.c_str());
+        return;
+    }
     ImGui::BeginTabBar("##ControllerConfigPortTabs");
-    for (uint8_t i = 0; i < 4; i++) {
-        DrawPortTab(i);
+    const size_t portCount = std::min(mControlDeck->GetPortCount(), static_cast<size_t>(UINT8_MAX));
+    for (size_t i = 0; i < portCount; i++) {
+        DrawPortTab(static_cast<uint8_t>(i));
     }
     ImGui::EndTabBar();
 }

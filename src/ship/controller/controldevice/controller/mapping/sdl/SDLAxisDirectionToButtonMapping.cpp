@@ -5,6 +5,8 @@
 #include "ship/config/ConsoleVariable.h"
 #include "ship/controller/controldeck/ControlDeck.h"
 
+#include <algorithm>
+
 namespace Ship {
 SDLAxisDirectionToButtonMapping::SDLAxisDirectionToButtonMapping(uint8_t portIndex, CONTROLLERBUTTONS_T bitmask,
                                                                  int32_t sdlControllerAxis, int32_t axisDirection,
@@ -48,6 +50,31 @@ int8_t SDLAxisDirectionToButtonMapping::GetMappingType() {
 std::string SDLAxisDirectionToButtonMapping::GetButtonMappingId() {
     return StringHelper::Sprintf("P%d-B%d-SDLA%d-AD%s", mPortIndex, mBitmask, mControllerAxis,
                                  mAxisDirection == 1 ? "P" : "N");
+}
+
+uint8_t SDLAxisDirectionToButtonMapping::NormalizeAnalogValue(int32_t axisValue, int32_t axisDirection) {
+    if (axisDirection != POSITIVE && axisDirection != NEGATIVE) {
+        return 0;
+    }
+
+    const int32_t magnitude = axisDirection == POSITIVE ? std::max(axisValue, 0) : std::max(-axisValue, 0);
+    const int32_t maximum = axisDirection == POSITIVE ? SDL_JOYSTICK_AXIS_MAX : -SDL_JOYSTICK_AXIS_MIN;
+    return static_cast<uint8_t>(std::clamp((magnitude * 255 + maximum / 2) / maximum, 0, 255));
+}
+
+uint8_t SDLAxisDirectionToButtonMapping::GetAnalogValue() {
+    if (mControlDeck == nullptr || mControlDeck->GamepadGameInputBlocked()) {
+        return 0;
+    }
+
+    uint8_t strongestValue = 0;
+    for (const auto& [instanceId, gamepad] :
+         mControlDeck->GetConnectedPhysicalDeviceManager()->GetConnectedSDLGamepadsForPort(mPortIndex)) {
+        (void)instanceId;
+        strongestValue = std::max(strongestValue,
+                                  NormalizeAnalogValue(SDL_GetGamepadAxis(gamepad, mControllerAxis), mAxisDirection));
+    }
+    return strongestValue;
 }
 
 void SDLAxisDirectionToButtonMapping::SaveToConfig() {

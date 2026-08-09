@@ -109,7 +109,7 @@ std::shared_ptr<Context> Context::CreateDefaultInstance(const std::string& name,
 
     // ---- Logging ----
     try {
-        auto logPath = GetPathRelativeToAppDirectory("logs/" + name + ".log");
+        auto logPath = GetPathRelativeToAppDirectory("logs/" + name + ".log", shortName);
         auto logger = std::make_shared<Logger>(name, logPath);
         shared->GetChildren().Add(logger);
         logger->Init();
@@ -119,13 +119,13 @@ std::shared_ptr<Context> Context::CreateDefaultInstance(const std::string& name,
     }
 
     // ---- Configuration ----
-    auto config = std::make_shared<Config>(GetPathRelativeToAppDirectory(configFilePath),
+    auto config = std::make_shared<Config>(GetPathRelativeToAppDirectory(configFilePath, shortName),
                                            std::dynamic_pointer_cast<Window>(window));
     shared->GetChildren().Add(config);
 
     // Read config values needed for component construction
-    auto mainPath = config->GetString("Game.Main Archive", GetAppDirectoryPath());
-    auto patchesPath = config->GetString("Game.Patches Archive", GetAppDirectoryPath() + "/mods");
+    auto mainPath = config->GetString("Game.Main Archive", GetAppDirectoryPath(shortName));
+    auto patchesPath = config->GetString("Game.Patches Archive", GetAppDirectoryPath(shortName) + "/mods");
     size_t threadCount = std::max(1, (int32_t)(std::thread::hardware_concurrency() - reservedThreadCount - 1));
 
     // ---- Console Variables ----
