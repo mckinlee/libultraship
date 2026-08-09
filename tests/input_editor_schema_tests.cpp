@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "libultraship/controller/controldeck/ControlDeck.h"
+#include "libultraship/controller/controldevice/controller/mapping/ControllerDefaultMappings.h"
 #include "ship/config/ConsoleVariable.h"
 #include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/controller/controldeck/ControlPort.h"
@@ -115,6 +117,43 @@ TEST(InputEditorSchemaTest, RejectsEveryMalformedSchemaClass) {
     schema = ValidSchema();
     schema.sticks[1].index = 2;
     EXPECT_TRUE(invalid(schema));
+}
+
+TEST(InputEditorSchemaTest, LibultrashipCustomButtonNamesProduceAUsableSchema) {
+    const std::unordered_map<CONTROLLERBUTTONS_T, std::string> names = {
+        { BTN_A, "Confirm" },
+        { BTN_B, "Cancel" },
+        { BTN_START, "Pause" },
+    };
+    LUS::ControlDeck controlDeck({}, std::make_shared<LUS::ControllerDefaultMappings>(), names, nullptr,
+                                 std::make_shared<ConsoleVariable>());
+
+    ASSERT_TRUE(controlDeck.ValidateInputEditorSchema().valid);
+    const auto& schema = controlDeck.GetInputEditorSchema();
+    ASSERT_EQ(schema.buttonGroups.size(), 1U);
+    EXPECT_EQ(schema.buttonGroups[0].label, "Buttons");
+    ASSERT_EQ(schema.buttonGroups[0].buttons.size(), names.size());
+    for (const auto& row : schema.buttonGroups[0].buttons) {
+        ASSERT_TRUE(names.contains(row.bitmask));
+        EXPECT_EQ(row.label, names.at(row.bitmask));
+    }
+}
+
+TEST(InputEditorSchemaTest, LibultrashipExplicitSchemaPreservesGameSpecificLayout) {
+    const std::unordered_map<CONTROLLERBUTTONS_T, std::string> names = {
+        { 0x1, "A" },
+        { 0x2, "B" },
+        { 0x20, "Z" },
+    };
+    LUS::ControlDeck controlDeck({}, std::make_shared<LUS::ControllerDefaultMappings>(), names, ValidSchema(), nullptr,
+                                 std::make_shared<ConsoleVariable>());
+
+    ASSERT_TRUE(controlDeck.ValidateInputEditorSchema().valid);
+    const auto& schema = controlDeck.GetInputEditorSchema();
+    ASSERT_EQ(schema.buttonGroups.size(), 2U);
+    EXPECT_EQ(schema.buttonGroups[0].label, "Face");
+    EXPECT_EQ(schema.buttonGroups[1].label, "Shoulders");
+    EXPECT_EQ(schema.sticks[1].label, "C-Stick");
 }
 
 } // namespace
