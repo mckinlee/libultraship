@@ -7,6 +7,8 @@
 #include "ship/controller/controldevice/controller/mapping/mouse/WheelHandler.h"
 #include <imgui.h>
 
+#include <algorithm>
+
 namespace LUS {
 namespace {
 
@@ -42,14 +44,42 @@ Ship::InputEditorSchema DefaultInputEditorSchema() {
     };
 }
 
+Ship::InputEditorSchema InputEditorSchemaFromButtonNames(
+    const std::unordered_map<CONTROLLERBUTTONS_T, std::string>& buttonNames) {
+    std::vector<Ship::InputEditorButtonRow> rows;
+    rows.reserve(buttonNames.size());
+    for (const auto& [bitmask, label] : buttonNames) {
+        rows.push_back({ bitmask, label });
+    }
+    std::sort(rows.begin(), rows.end(),
+              [](const auto& left, const auto& right) { return left.bitmask < right.bitmask; });
+    return {
+        { { "Buttons", std::move(rows), true } },
+        {
+            { "Analog Stick", Ship::LEFT_STICK, true },
+            { "Additional (\"Right\") Stick", Ship::RIGHT_STICK, false },
+        },
+        { true, true, true },
+    };
+}
+
 } // namespace
 
 ControlDeck::ControlDeck(std::vector<CONTROLLERBUTTONS_T> additionalBitmasks,
                          std::shared_ptr<Ship::ControllerDefaultMappings> controllerDefaultMappings,
                          std::unordered_map<CONTROLLERBUTTONS_T, std::string> buttonNames,
                          std::shared_ptr<Ship::Window> window, std::shared_ptr<Ship::ConsoleVariable> consoleVariable)
+    : ControlDeck(std::move(additionalBitmasks), std::move(controllerDefaultMappings), buttonNames,
+                  InputEditorSchemaFromButtonNames(buttonNames), std::move(window), std::move(consoleVariable)) {
+}
+
+ControlDeck::ControlDeck(std::vector<CONTROLLERBUTTONS_T> additionalBitmasks,
+                         std::shared_ptr<Ship::ControllerDefaultMappings> controllerDefaultMappings,
+                         std::unordered_map<CONTROLLERBUTTONS_T, std::string> buttonNames,
+                         Ship::InputEditorSchema inputEditorSchema, std::shared_ptr<Ship::Window> window,
+                         std::shared_ptr<Ship::ConsoleVariable> consoleVariable)
     : Ship::ControlDeck(additionalBitmasks, controllerDefaultMappings, buttonNames, window, consoleVariable,
-                        DefaultInputEditorSchema()),
+                        std::move(inputEditorSchema)),
       mPads(nullptr) {
     std::vector<CONTROLLERBUTTONS_T> bitmasks;
     for (auto [bitmask, name] : buttonNames) {
@@ -81,6 +111,7 @@ ControlDeck::ControlDeck(std::vector<CONTROLLERBUTTONS_T> additionalBitmasks, st
                       { BTN_DUP, "DUp" },
                       { BTN_DDOWN, "DDown" },
                   }),
+                  DefaultInputEditorSchema(),
                   std::move(window), std::move(consoleVariable)) {
 }
 

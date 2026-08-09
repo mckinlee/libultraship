@@ -54,6 +54,19 @@ class ControlDeck final : public Ship::ControlDeck {
                 std::shared_ptr<Ship::ConsoleVariable> consoleVariable = nullptr);
 
     /**
+     * @brief Full constructor with an explicit Input Editor layout.
+     * @param additionalBitmasks        Extra button bitmasks.
+     * @param controllerDefaultMappings Default mappings applied to new devices.
+     * @param buttonNames               Human-readable names for each button bitmask.
+     * @param inputEditorSchema         Ordered groups, sticks, and capabilities shown by the Input Editor.
+     */
+    ControlDeck(std::vector<CONTROLLERBUTTONS_T> additionalBitmasks,
+                std::shared_ptr<Ship::ControllerDefaultMappings> controllerDefaultMappings,
+                std::unordered_map<CONTROLLERBUTTONS_T, std::string> buttonNames,
+                Ship::InputEditorSchema inputEditorSchema, std::shared_ptr<Ship::Window> window = nullptr,
+                std::shared_ptr<Ship::ConsoleVariable> consoleVariable = nullptr);
+
+    /**
      * @brief Returns a pointer to the OSContPad buffer (one pad per port).
      *
      * The buffer should be updated by WriteToPad() at the start of each game frame.
