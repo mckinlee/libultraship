@@ -1,4 +1,5 @@
 #include "libultraship/libultraship.h"
+#include "libultraship/bridge/apppathbridge.h"
 #include <SDL3/SDL.h>
 #include <ratio>
 
@@ -18,7 +19,7 @@ int32_t osContInit(OSMesgQueue* mq, uint8_t* controllerBits, OSContStatus* statu
     *controllerBits = 0;
     status->status |= 1;
 
-    std::string controllerDb = Ship::Context::LocateFileAcrossAppDirs("gamecontrollerdb.txt");
+    std::string controllerDb = Ship::Context::LocateFileAcrossAppDirs("gamecontrollerdb.txt", AppPathGetShortName());
     int mappingsAdded = SDL_AddGamepadMappingsFromFile(controllerDb.c_str());
     if (mappingsAdded >= 0) {
         SPDLOG_INFO("Added SDL game controllers from \"{}\" ({})", controllerDb, mappingsAdded);

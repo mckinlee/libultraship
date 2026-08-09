@@ -7,6 +7,7 @@
 #include "ship/config/ConsoleVariable.h"
 #include <imgui.h>
 #include <stdexcept>
+#include <unordered_set>
 #include "ship/controller/controldevice/controller/mapping/mouse/WheelHandler.h"
 
 namespace Ship {
@@ -14,13 +15,14 @@ namespace Ship {
 ControlDeck::ControlDeck(std::vector<CONTROLLERBUTTONS_T> additionalBitmasks,
                          std::shared_ptr<ControllerDefaultMappings> controllerDefaultMappings,
                          std::unordered_map<CONTROLLERBUTTONS_T, std::string> buttonNames,
-                         std::shared_ptr<Window> window, std::shared_ptr<ConsoleVariable> consoleVariable)
-    : Component("ControlDeck"), mWindow(std::move(window)), mConsoleVariables(std::move(consoleVariable)) {
+                         std::shared_ptr<Window> window, std::shared_ptr<ConsoleVariable> consoleVariable,
+                         InputEditorSchema inputEditorSchema)
+    : Component("ControlDeck"), mButtonNames(std::move(buttonNames)), mInputEditorSchema(std::move(inputEditorSchema)),
+      mWindow(std::move(window)), mConsoleVariables(std::move(consoleVariable)) {
     mConnectedPhysicalDeviceManager = std::make_shared<ConnectedPhysicalDeviceManager>();
     mGlobalSDLDeviceSettings = std::make_shared<GlobalSDLDeviceSettings>(mConsoleVariables);
     mControllerDefaultMappings = controllerDefaultMappings == nullptr ? std::make_shared<ControllerDefaultMappings>()
                                                                       : controllerDefaultMappings;
-    mButtonNames = std::move(buttonNames);
 }
 
 ControlDeck::~ControlDeck() {
@@ -110,7 +112,14 @@ bool ControlDeck::MouseGameInputBlocked() {
 }
 
 std::shared_ptr<Controller> ControlDeck::GetControllerByPort(uint8_t port) {
+    if (port >= mPorts.size()) {
+        return nullptr;
+    }
     return mPorts[port]->GetConnectedController();
+}
+
+size_t ControlDeck::GetPortCount() const {
+    return mPorts.size();
 }
 
 void ControlDeck::BlockGameInput(int32_t blockId) {
@@ -142,6 +151,61 @@ std::shared_ptr<WheelHandler> ControlDeck::GetWheelHandler() const {
 
 const std::unordered_map<CONTROLLERBUTTONS_T, std::string>& ControlDeck::GetAllButtonNames() const {
     return mButtonNames;
+}
+
+const InputEditorSchema& ControlDeck::GetInputEditorSchema() const {
+    return mInputEditorSchema;
+}
+
+InputEditorSchemaValidation ControlDeck::ValidateInputEditorSchema() const {
+    const auto fail = [](std::string error) { return InputEditorSchemaValidation{ false, std::move(error) }; };
+    const auto blank = [](const std::string& value) { return value.find_first_not_of(" \t\r\n") == std::string::npos; };
+
+    if (mPorts.empty()) {
+        return fail("The controller deck has no ports.");
+    }
+    if (mInputEditorSchema.buttonGroups.empty()) {
+        return fail("The input schema has no button groups.");
+    }
+
+    std::unordered_set<std::string> groupLabels;
+    std::unordered_set<std::string> rowLabels;
+    std::unordered_set<CONTROLLERBUTTONS_T> bitmasks;
+    for (const auto& group : mInputEditorSchema.buttonGroups) {
+        if (blank(group.label) || !groupLabels.insert(group.label).second) {
+            return fail("Button group labels must be nonempty and unique.");
+        }
+        if (group.buttons.empty()) {
+            return fail("Every button group must contain at least one button.");
+        }
+        for (const auto& row : group.buttons) {
+            if (blank(row.label) || !rowLabels.insert(row.label).second) {
+                return fail("Button labels must be nonempty and unique.");
+            }
+            if (row.bitmask == 0 || (row.bitmask & (row.bitmask - 1)) != 0 || !bitmasks.insert(row.bitmask).second) {
+                return fail("Button masks must be unique nonzero single bits.");
+            }
+            const auto known = mButtonNames.find(row.bitmask);
+            if (known == mButtonNames.end() || known->second != row.label) {
+                return fail("The input schema must exactly match the ControlDeck button map.");
+            }
+        }
+    }
+    if (bitmasks.size() != mButtonNames.size()) {
+        return fail("The input schema must cover every ControlDeck button.");
+    }
+
+    std::unordered_set<std::string> stickLabels;
+    std::unordered_set<uint8_t> stickIndices;
+    for (const auto& stick : mInputEditorSchema.sticks) {
+        if (blank(stick.label) || !stickLabels.insert(stick.label).second) {
+            return fail("Stick labels must be nonempty and unique.");
+        }
+        if (stick.index > static_cast<uint8_t>(RIGHT_STICK) || !stickIndices.insert(stick.index).second) {
+            return fail("Stick indices must be unique supported indices.");
+        }
+    }
+    return { true, {} };
 }
 
 std::string ControlDeck::GetButtonNameForBitmask(CONTROLLERBUTTONS_T bitmask) {

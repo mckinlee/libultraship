@@ -115,8 +115,9 @@ void Gui::OnInit(const nlohmann::json& initArgs) {
     mImGuiIo->FontGlobalScale = 2.0f;
 #endif
 
-    mImGuiIniPath = Context::GetPathRelativeToAppDirectory("imgui.ini");
-    mImGuiLogPath = Context::GetPathRelativeToAppDirectory("imgui_log.txt");
+    const std::string appShortName = context != nullptr ? context->GetShortName() : std::string{};
+    mImGuiIniPath = Context::GetPathRelativeToAppDirectory("imgui.ini", appShortName);
+    mImGuiLogPath = Context::GetPathRelativeToAppDirectory("imgui_log.txt", appShortName);
     mImGuiIo->IniFilename = mImGuiIniPath.c_str();
     mImGuiIo->LogFilename = mImGuiLogPath.c_str();
 
@@ -399,6 +400,9 @@ void Gui::SetMenuBar(std::shared_ptr<GuiMenuBar> menuBar) {
     mMenuBar = menuBar;
 
     if (GetMenuBar()) {
+        if (GetMenuBar()->GetContext() == nullptr) {
+            GetMenuBar()->SetContext(GetContext());
+        }
         GetMenuBar()->Init();
     }
 }
@@ -407,6 +411,9 @@ void Gui::SetMenu(std::shared_ptr<GuiWindow> menu) {
     mMenu = menu;
 
     if (GetMenu()) {
+        if (GetMenu()->GetContext() == nullptr) {
+            GetMenu()->SetContext(GetContext());
+        }
         GetMenu()->Init();
     }
 }

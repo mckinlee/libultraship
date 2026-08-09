@@ -8,11 +8,48 @@
 #include <imgui.h>
 
 namespace LUS {
+namespace {
+
+Ship::InputEditorSchema DefaultInputEditorSchema() {
+    return {
+        {
+            { "Buttons",
+              {
+                  { BTN_A, "A" },
+                  { BTN_B, "B" },
+                  { BTN_START, "Start" },
+                  { BTN_L, "L" },
+                  { BTN_R, "R" },
+                  { BTN_Z, "Z" },
+                  { BTN_CUP, "CUp" },
+                  { BTN_CDOWN, "CDown" },
+                  { BTN_CLEFT, "CLeft" },
+                  { BTN_CRIGHT, "CRight" },
+              } },
+            { "D-Pad",
+              {
+                  { BTN_DUP, "DUp" },
+                  { BTN_DDOWN, "DDown" },
+                  { BTN_DLEFT, "DLeft" },
+                  { BTN_DRIGHT, "DRight" },
+              } },
+        },
+        {
+            { "Analog Stick", Ship::LEFT_STICK, true },
+            { "Additional (\"Right\") Stick", Ship::RIGHT_STICK, false },
+        },
+        { true, true, true },
+    };
+}
+
+} // namespace
+
 ControlDeck::ControlDeck(std::vector<CONTROLLERBUTTONS_T> additionalBitmasks,
                          std::shared_ptr<Ship::ControllerDefaultMappings> controllerDefaultMappings,
                          std::unordered_map<CONTROLLERBUTTONS_T, std::string> buttonNames,
                          std::shared_ptr<Ship::Window> window, std::shared_ptr<Ship::ConsoleVariable> consoleVariable)
-    : Ship::ControlDeck(additionalBitmasks, controllerDefaultMappings, buttonNames, window, consoleVariable),
+    : Ship::ControlDeck(additionalBitmasks, controllerDefaultMappings, buttonNames, window, consoleVariable,
+                        DefaultInputEditorSchema()),
       mPads(nullptr) {
     std::vector<CONTROLLERBUTTONS_T> bitmasks;
     for (auto [bitmask, name] : buttonNames) {

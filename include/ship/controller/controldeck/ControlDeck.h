@@ -14,6 +14,40 @@
 namespace Ship {
 class WheelHandler;
 
+struct InputEditorButtonRow {
+    CONTROLLERBUTTONS_T bitmask = 0;
+    std::string label;
+};
+
+struct InputEditorButtonGroup {
+    std::string label;
+    std::vector<InputEditorButtonRow> buttons;
+    bool defaultOpen = true;
+};
+
+struct InputEditorStickRow {
+    std::string label;
+    uint8_t index = 0;
+    bool defaultOpen = true;
+};
+
+struct InputEditorCapabilities {
+    bool rumble = false;
+    bool gyro = false;
+    bool led = false;
+};
+
+struct InputEditorSchema {
+    std::vector<InputEditorButtonGroup> buttonGroups;
+    std::vector<InputEditorStickRow> sticks;
+    InputEditorCapabilities capabilities;
+};
+
+struct InputEditorSchemaValidation {
+    bool valid = false;
+    std::string error;
+};
+
 /**
  * @brief Manages all controller ports and routes input/blocking requests.
  *
@@ -48,7 +82,8 @@ class ControlDeck : public Component {
     ControlDeck(std::vector<CONTROLLERBUTTONS_T> additionalBitmasks,
                 std::shared_ptr<ControllerDefaultMappings> controllerDefaultMappings,
                 std::unordered_map<CONTROLLERBUTTONS_T, std::string> buttonNames,
-                std::shared_ptr<Window> window = nullptr, std::shared_ptr<ConsoleVariable> consoleVariable = nullptr);
+                std::shared_ptr<Window> window = nullptr, std::shared_ptr<ConsoleVariable> consoleVariable = nullptr,
+                InputEditorSchema inputEditorSchema = {});
     ~ControlDeck();
 
     /**
@@ -74,6 +109,7 @@ class ControlDeck : public Component {
      * @param port Zero-based port index.
      */
     std::shared_ptr<Controller> GetControllerByPort(uint8_t port);
+    size_t GetPortCount() const;
     /**
      * @brief Blocks all game input for the caller identified by @p blockId.
      *
@@ -121,6 +157,8 @@ class ControlDeck : public Component {
      * @brief Returns the full bitmask→name map for all registered buttons.
      */
     const std::unordered_map<CONTROLLERBUTTONS_T, std::string>& GetAllButtonNames() const;
+    const InputEditorSchema& GetInputEditorSchema() const;
+    InputEditorSchemaValidation ValidateInputEditorSchema() const;
     /**
      * @brief Returns the human-readable name for the given button bitmask.
      * @param bitmask Single-bit button bitmask.
@@ -145,6 +183,7 @@ class ControlDeck : public Component {
     std::shared_ptr<GlobalSDLDeviceSettings> mGlobalSDLDeviceSettings;
     std::shared_ptr<ControllerDefaultMappings> mControllerDefaultMappings;
     std::unordered_map<CONTROLLERBUTTONS_T, std::string> mButtonNames;
+    InputEditorSchema mInputEditorSchema;
     std::shared_ptr<Window> mWindow;
     std::shared_ptr<ConsoleVariable> mConsoleVariables;
     std::shared_ptr<WheelHandler> mWheelHandler;

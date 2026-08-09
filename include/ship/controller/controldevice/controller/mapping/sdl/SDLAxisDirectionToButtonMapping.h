@@ -37,6 +37,17 @@ class SDLAxisDirectionToButtonMapping final : public ControllerButtonMapping, pu
     /** @brief Returns the unique string identifier for this mapping. */
     std::string GetButtonMappingId() override;
 
+    /**
+     * @brief Returns the strongest current travel in the configured direction.
+     *
+     * The result spans
+     * 0-255 and is zero while gamepad input is blocked.
+     */
+    uint8_t GetAnalogValue();
+
+    /** @brief Normalizes one signed SDL axis sample for a configured direction. */
+    static uint8_t NormalizeAnalogValue(int32_t axisValue, int32_t axisDirection);
+
     /** @brief Persists this mapping to the application configuration. */
     void SaveToConfig() override;
 

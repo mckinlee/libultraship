@@ -3,6 +3,7 @@
 #include "fast/Fast3dWindow.h"
 #include "fast/debug/GfxDebugger.h"
 #include "libultraship/bridge/audiobridge.h"
+#include "libultraship/bridge/apppathbridge.h"
 #include "libultraship/bridge/consolevariablebridge.h"
 #include "libultraship/bridge/controllerbridge.h"
 #include "libultraship/bridge/crashhandlerbridge.h"
@@ -34,6 +35,7 @@ UltraBridge::~UltraBridge() {
 }
 
 void UltraBridge::UpdateCaches(const std::shared_ptr<Ship::Context>& context) {
+    AppPathSetShortName(context != nullptr ? context->GetShortName() : std::string{});
     ResourceSetResourceManager(context->GetChildren().GetFirst<Ship::ResourceManager>());
     CVarSetConsoleVariable(context->GetChildren().GetFirst<Ship::ConsoleVariable>());
     WindowSetWindowComponent(context->GetChildren().GetFirst<Ship::Window>());
@@ -49,6 +51,7 @@ void UltraBridge::UpdateCaches(const std::shared_ptr<Ship::Context>& context) {
 }
 
 void UltraBridge::ClearCaches() {
+    AppPathSetShortName({});
     ResourceSetResourceManager(nullptr);
     CVarSetConsoleVariable(nullptr);
     WindowSetWindowComponent(nullptr);

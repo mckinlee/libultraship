@@ -39,7 +39,10 @@ add_executable(libultraship_tests
     control_deck_tests.cpp
     gfx_sdl_window_tests.cpp
     gui_lifecycle_tests.cpp
+    input_editor_schema_tests.cpp
+    app_path_bridge_tests.cpp
     rumble_mapping_factory_tests.cpp
+    sdl_axis_direction_to_button_mapping_tests.cpp
 )
 
 if(ENABLE_SCRIPTING)

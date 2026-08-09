@@ -6,7 +6,6 @@
 #include <unordered_map>
 #include <string>
 #include <vector>
-#include <set>
 #include "ship/controller/controldevice/controller/Controller.h"
 
 namespace Ship {
@@ -238,8 +237,6 @@ class InputEditorWindow : public Ship::GuiWindow {
      */
     void DrawPortTab(uint8_t portIndex);
 
-    std::set<CONTROLLERBUTTONS_T> mButtonsBitmasks;
-    std::set<CONTROLLERBUTTONS_T> mDpadBitmasks;
     bool mInputEditorPopupOpen;
 
     /**

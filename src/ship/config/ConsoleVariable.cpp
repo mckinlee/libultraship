@@ -1,5 +1,6 @@
 #include "ship/config/ConsoleVariable.h"
 
+#include <filesystem>
 #include <functional>
 #include "ship/utils/filesystemtools/DiskFile.h"
 #include "ship/utils/Utils.h"
@@ -351,7 +352,14 @@ void ConsoleVariable::LoadFromPath(
     }
 }
 void ConsoleVariable::LoadLegacy() {
-    auto conf = Context::GetPathRelativeToAppDirectory("cvars.cfg");
+    std::filesystem::path conf;
+    if (mConfig != nullptr && !mConfig->GetPath().empty() && mConfig->GetPath() != "None") {
+        conf = std::filesystem::path(mConfig->GetPath()).parent_path() / "cvars.cfg";
+    } else {
+        const auto context = GetContext();
+        conf = Context::GetPathRelativeToAppDirectory("cvars.cfg",
+                                                      context != nullptr ? context->GetShortName() : std::string{});
+    }
     if (DiskFile::Exists(conf)) {
         const auto lines = DiskFile::ReadAllLines(conf);
 
@@ -391,7 +399,7 @@ void ConsoleVariable::LoadLegacy() {
             }
         }
 
-        fs::remove(conf);
+        std::filesystem::remove(conf);
     }
 }
 } // namespace Ship
