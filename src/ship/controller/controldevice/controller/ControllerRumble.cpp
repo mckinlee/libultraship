@@ -71,6 +71,10 @@ void ControllerRumble::ClearAllMappings() {
     SaveRumbleMappingIdsToConfig();
 }
 
+void ControllerRumble::ReleaseMappings() {
+    mRumbleMappings.clear();
+}
+
 void ControllerRumble::ClearAllMappingsForDeviceType(PhysicalDeviceType physicalDeviceType) {
     std::vector<std::string> mappingIdsToRemove;
     for (auto [id, mapping] : mRumbleMappings) {

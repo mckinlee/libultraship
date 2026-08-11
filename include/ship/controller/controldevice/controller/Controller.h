@@ -71,6 +71,9 @@ class Controller : public ControlDevice {
     /** @brief Removes all mappings for all buttons, sticks, rumble, LED, and gyro. */
     void ClearAllMappings();
 
+    /** @brief Releases runtime mapping references during teardown without modifying Config. */
+    void ReleaseRuntimeReferences();
+
     /**
      * @brief Removes all mappings that target the given physical device type.
      * @param physicalDeviceType Type of device whose mappings should be cleared (e.g. keyboard, SDL gamepad).

@@ -55,6 +55,13 @@ void ControllerStick::ClearAllMappings() {
     SetNotchSnapAngle(0);
 }
 
+void ControllerStick::ReleaseMappings() {
+    mAxisDirectionMappings.clear();
+    mUseEventInputToCreateNewMapping = false;
+    mKeyboardScancodeForNewMapping = LUS_KB_UNKNOWN;
+    mMouseButtonForNewMapping = LUS_MOUSE_BTN_UNKNOWN;
+}
+
 void ControllerStick::ClearAllMappingsForDeviceType(PhysicalDeviceType physicalDeviceType) {
     std::vector<std::string> mappingIdsToRemove;
     for (auto [direction, directionMappings] : mAxisDirectionMappings) {

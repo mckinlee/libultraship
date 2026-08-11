@@ -60,8 +60,11 @@ class ControllerRumble {
     /** @brief Writes the current set of mapping IDs to Config. */
     void SaveRumbleMappingIdsToConfig();
 
-    /** @brief Removes all in-memory rumble mappings. */
+    /** @brief Removes all rumble mappings from memory and Config. */
     void ClearAllMappings();
+
+    /** @brief Releases in-memory mappings during teardown without modifying Config. */
+    void ReleaseMappings();
 
     /**
      * @brief Removes all mappings that target the given device type.

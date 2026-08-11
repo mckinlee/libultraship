@@ -59,8 +59,11 @@ class ControllerLED {
     /** @brief Writes the current set of mapping IDs to Config. */
     void SaveLEDMappingIdsToConfig();
 
-    /** @brief Removes all in-memory LED mappings. */
+    /** @brief Removes all LED mappings from memory and Config. */
     void ClearAllMappings();
+
+    /** @brief Releases in-memory mappings during teardown without modifying Config. */
+    void ReleaseMappings();
 
     /**
      * @brief Removes all mappings that target the given device type.

@@ -40,8 +40,7 @@ void ControlDeck::OnRemoved(bool forced) {
         if (controller == nullptr) {
             continue;
         }
-        controller->ClearAllMappings();
-        controller->SetControlDeck(nullptr);
+        controller->ReleaseRuntimeReferences();
     }
     mGameInputBlockers.clear();
     mWheelHandler.reset();

@@ -73,6 +73,10 @@ void ControllerGyro::ClearGyroMapping() {
     SaveGyroMappingIdToConfig();
 }
 
+void ControllerGyro::ReleaseGyroMapping() {
+    mGyroMapping.reset();
+}
+
 void ControllerGyro::ReloadGyroMappingFromConfig() {
     const std::string gyroMappingIdCvarKey =
         StringHelper::Sprintf(CVAR_PREFIX_CONTROLLERS ".Port%d.Gyro.GyroMappingId", mPortIndex + 1);

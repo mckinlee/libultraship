@@ -60,8 +60,11 @@ class ControllerStick {
      */
     void AddDefaultMappings(PhysicalDeviceType physicalDeviceType);
 
-    /** @brief Removes all axis-direction mappings for all directions. */
+    /** @brief Removes all axis-direction mappings from memory and Config. */
     void ClearAllMappings();
+
+    /** @brief Releases in-memory mappings during teardown without modifying Config. */
+    void ReleaseMappings();
 
     /**
      * @brief Removes all axis-direction mappings that target the given device type.

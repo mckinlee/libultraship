@@ -97,8 +97,11 @@ class ControllerButton {
      */
     void ReloadAllMappingsFromConfig();
 
-    /** @brief Removes every in-memory mapping (does not touch Config). */
+    /** @brief Removes every mapping from memory and Config. */
     void ClearAllButtonMappings();
+
+    /** @brief Releases in-memory mappings during teardown without modifying Config. */
+    void ReleaseButtonMappings();
 
     /**
      * @brief Removes all mappings that target the given physical device type.

@@ -66,6 +66,10 @@ void ControllerLED::ClearAllMappings() {
     SaveLEDMappingIdsToConfig();
 }
 
+void ControllerLED::ReleaseMappings() {
+    mLEDMappings.clear();
+}
+
 void ControllerLED::ClearAllMappingsForDeviceType(PhysicalDeviceType physicalDeviceType) {
     std::vector<std::string> mappingIdsToRemove;
     for (auto [id, mapping] : mLEDMappings) {

@@ -120,6 +120,13 @@ void ControllerButton::ClearAllButtonMappings() {
     SaveButtonMappingIdsToConfig();
 }
 
+void ControllerButton::ReleaseButtonMappings() {
+    mButtonMappings.clear();
+    mUseEventInputToCreateNewMapping = false;
+    mKeyboardScancodeForNewMapping = LUS_KB_UNKNOWN;
+    mMouseButtonForNewMapping = LUS_MOUSE_BTN_UNKNOWN;
+}
+
 void ControllerButton::ClearAllButtonMappingsForDeviceType(PhysicalDeviceType physicalDeviceType) {
     std::vector<std::string> mappingIdsToRemove;
     for (auto [id, mapping] : mButtonMappings) {

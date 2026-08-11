@@ -106,6 +106,19 @@ void Controller::ClearAllMappings() {
     GetLED()->ClearAllMappings();
 }
 
+void Controller::ReleaseRuntimeReferences() {
+    for (auto& [bitmask, button] : mButtons) {
+        (void)bitmask;
+        button->ReleaseButtonMappings();
+    }
+    mLeftStick->ReleaseMappings();
+    mRightStick->ReleaseMappings();
+    mGyro->ReleaseGyroMapping();
+    mRumble->ReleaseMappings();
+    mLED->ReleaseMappings();
+    SetControlDeck(nullptr);
+}
+
 void Controller::ClearAllMappingsForDeviceType(PhysicalDeviceType physicalDeviceType) {
     for (auto [bitmask, button] : GetAllButtons()) {
         button->ClearAllButtonMappingsForDeviceType(physicalDeviceType);

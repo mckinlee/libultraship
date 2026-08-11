@@ -9,10 +9,13 @@
 namespace Ship {
 namespace {
 
+constexpr CONTROLLERBUTTONS_T kTestButton = 0x4000;
+constexpr char kTestButtonMappingIds[] = "Controllers.Port1.Buttons.TestButtonMappingIds";
+
 class TestController final : public Controller {
   public:
     explicit TestController(std::shared_ptr<ConsoleVariable> consoleVariable)
-        : Controller(0, {}, std::move(consoleVariable)) {
+        : Controller(0, { kTestButton }, std::move(consoleVariable)) {
     }
 
     void ReadToPad(void*) override {
@@ -41,18 +44,19 @@ class TestControlDeck final : public ControlDeck {
 };
 
 TEST(ControlDeckTest, PreservesGameSpecificButtonNames) {
-    constexpr CONTROLLERBUTTONS_T testButton = 0x4000;
     auto consoleVariables = std::make_shared<ConsoleVariable>();
-    TestControlDeck controlDeck({ { testButton, "Test" } }, consoleVariables);
+    TestControlDeck controlDeck({ { kTestButton, "Test" } }, consoleVariables);
 
-    EXPECT_EQ(controlDeck.GetAllButtonNames().at(testButton), "Test");
-    EXPECT_EQ(controlDeck.GetButtonNameForBitmask(testButton), "Test");
+    EXPECT_EQ(controlDeck.GetAllButtonNames().at(kTestButton), "Test");
+    EXPECT_EQ(controlDeck.GetButtonNameForBitmask(kTestButton), "Test");
 }
 
-TEST(ControlDeckTest, ReleasesControllerBackReferencesWhenRemoved) {
+TEST(ControlDeckTest, ReleasesControllerBackReferencesWithoutDeletingConfiguration) {
     auto context = Context::CreateInstance("ControlDeck lifecycle test", "control-deck-lifecycle-test");
-    auto deck = std::make_shared<TestControlDeck>(std::unordered_map<CONTROLLERBUTTONS_T, std::string>{},
-                                                  std::make_shared<ConsoleVariable>());
+    auto consoleVariables = std::make_shared<ConsoleVariable>();
+    consoleVariables->SetString(kTestButtonMappingIds, "persistent-mapping");
+    auto deck = std::make_shared<TestControlDeck>(
+        std::unordered_map<CONTROLLERBUTTONS_T, std::string>{ { kTestButton, "Test" } }, consoleVariables);
     deck->AddControllerBackReference(deck);
     context->GetChildren().Add(deck);
     std::weak_ptr<ControlDeck> releasedDeck = deck;
@@ -61,6 +65,7 @@ TEST(ControlDeckTest, ReleasesControllerBackReferencesWhenRemoved) {
     deck.reset();
 
     EXPECT_TRUE(releasedDeck.expired());
+    EXPECT_STREQ(consoleVariables->GetString(kTestButtonMappingIds, ""), "persistent-mapping");
 }
 
 } // namespace

@@ -32,8 +32,11 @@ class ControllerGyro {
     /** @brief Clears any in-memory mapping and reloads it from Config. */
     void ReloadGyroMappingFromConfig();
 
-    /** @brief Removes the in-memory gyro mapping (does not touch Config). */
+    /** @brief Removes the gyro mapping from memory and Config. */
     void ClearGyroMapping();
+
+    /** @brief Releases the in-memory mapping during teardown without modifying Config. */
+    void ReleaseGyroMapping();
 
     /** @brief Writes the current gyro mapping ID to Config. */
     void SaveGyroMappingIdToConfig();
