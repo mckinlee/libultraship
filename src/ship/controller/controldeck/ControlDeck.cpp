@@ -29,6 +29,27 @@ ControlDeck::~ControlDeck() {
     SPDLOG_TRACE("destruct control deck");
 }
 
+void ControlDeck::OnRemoved(bool forced) {
+    Component::OnRemoved(forced);
+    if (GetParents().GetCount() != 0) {
+        return;
+    }
+
+    for (const auto& port : mPorts) {
+        const auto controller = port != nullptr ? port->GetConnectedController() : nullptr;
+        if (controller == nullptr) {
+            continue;
+        }
+        controller->ClearAllMappings();
+        controller->SetControlDeck(nullptr);
+    }
+    mGameInputBlockers.clear();
+    mWheelHandler.reset();
+    mControllerBits = nullptr;
+    mWindow.reset();
+    mConsoleVariables.reset();
+}
+
 void ControlDeck::Init(uint8_t* controllerBits) {
     mControllerBits = controllerBits;
     *mControllerBits |= 1 << 0;

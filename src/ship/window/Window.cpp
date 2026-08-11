@@ -34,8 +34,12 @@ Window::Window(std::shared_ptr<Config> config) : Window(std::vector<std::shared_
 }
 
 Window::~Window() {
-    mGui->ShutDownImGui(this);
-    SPDLOG_DEBUG("destruct window");
+    if (mGui != nullptr) {
+        mGui->ShutDownImGui(this);
+    }
+    if (spdlog::default_logger()) {
+        SPDLOG_DEBUG("destruct window");
+    }
 }
 
 void Window::OnInit(const nlohmann::json& initArgs) {
@@ -47,6 +51,23 @@ void Window::OnInit(const nlohmann::json& initArgs) {
         GetChildren().Add(mGui);
     }
     mMouseStateManager->SetWindow(std::dynamic_pointer_cast<Window>(shared_from_this()));
+}
+
+void Window::OnRemoved(bool forced) {
+    Component::OnRemoved(forced);
+    if (GetParents().GetCount() != 0) {
+        return;
+    }
+
+    if (mGui != nullptr) {
+        mGui->ShutDownImGui(this);
+        GetChildren().Remove(mGui, true);
+        mGui.reset();
+    }
+    if (mMouseStateManager != nullptr) {
+        mMouseStateManager->SetWindow(nullptr);
+        mMouseStateManager.reset();
+    }
 }
 
 void Window::ToggleFullscreen() {

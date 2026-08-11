@@ -19,7 +19,9 @@ Config::Config(const std::string& path, std::shared_ptr<Window> window)
 }
 
 Config::~Config() {
-    SPDLOG_TRACE("destruct config");
+    if (spdlog::default_logger()) {
+        SPDLOG_TRACE("destruct config");
+    }
 }
 
 const std::string& Config::GetPath() const {

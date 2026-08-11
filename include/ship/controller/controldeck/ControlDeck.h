@@ -167,6 +167,9 @@ class ControlDeck : public Component {
     std::string GetButtonNameForBitmask(CONTROLLERBUTTONS_T bitmask);
 
   protected:
+    /** Releases controller back-references when the deck leaves its component hierarchy. */
+    void OnRemoved(bool forced) override;
+
     /**
      * @brief Returns true if *all* registered blockers have blocked game input.
      *

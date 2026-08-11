@@ -273,6 +273,8 @@ class Window : public Component {
   protected:
     /** @brief Caches this Window on the MouseStateManager. */
     void OnInit(const nlohmann::json& initArgs) override;
+    /** @brief Releases Window-owned components and their back-references on hierarchy removal. */
+    void OnRemoved(bool forced) override;
     /**
      * @brief Records the active graphics backend. Called by subclass constructors.
      * @param backend The backend ID in use.
