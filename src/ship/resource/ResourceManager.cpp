@@ -13,6 +13,15 @@
 #include "ship/thread/ThreadPool.h"
 
 namespace Ship {
+namespace {
+
+template <typename T> std::shared_future<T> MakeReadySharedFuture(T value) {
+    std::promise<T> promise;
+    promise.set_value(std::move(value));
+    return promise.get_future().share();
+}
+
+} // namespace
 
 ResourceFilter::ResourceFilter(const std::list<std::string>& includeMasks, const std::list<std::string>& excludeMasks,
                                const uintptr_t owner, const std::shared_ptr<Archive> parent)
@@ -49,8 +58,31 @@ void ResourceManager::OnRemoved(bool forced) {
     if (GetParents().GetCount() != 0) {
         return;
     }
+
+    {
+        std::unique_lock<std::mutex> lock(mAsyncTaskMutex);
+        mAcceptingAsyncTasks = false;
+        mAsyncTaskFinished.wait(lock, [this]() { return mAsyncTaskCount == 0; });
+    }
     mResourceLoader.reset();
     mArchiveManager.reset();
+}
+
+bool ResourceManager::BeginAsyncTask() {
+    const std::lock_guard<std::mutex> lock(mAsyncTaskMutex);
+    if (!mAcceptingAsyncTasks) {
+        return false;
+    }
+    ++mAsyncTaskCount;
+    return true;
+}
+
+void ResourceManager::FinishAsyncTask() {
+    const std::lock_guard<std::mutex> lock(mAsyncTaskMutex);
+    --mAsyncTaskCount;
+    if (mAsyncTaskCount == 0) {
+        mAsyncTaskFinished.notify_all();
+    }
 }
 
 ResourceManager::~ResourceManager() {
@@ -219,31 +251,59 @@ std::shared_ptr<IResource> ResourceManager::LoadResourceProcess(const ResourceId
         } else {
             SPDLOG_TRACE("Failed to load resource file at hash {}", identifier.GetPathHash());
         }
-        mResourceCache[identifier] = ResourceLoadError::NotFound;
-        return nullptr;
+        std::shared_ptr<IResource> displacedResource;
+        {
+            const std::lock_guard<std::mutex> lock(mMutex);
+            auto cacheIt = mResourceCache.find(identifier);
+            if (cacheIt == mResourceCache.end()) {
+                mResourceCache.emplace(identifier, ResourceLoadError::NotFound);
+            } else {
+                cachedResource = GetCachedResource(cacheIt->second);
+                if (!cachedResource) {
+                    if (std::holds_alternative<std::shared_ptr<IResource>>(cacheIt->second)) {
+                        displacedResource = std::move(std::get<std::shared_ptr<IResource>>(cacheIt->second));
+                    }
+                    cacheIt->second = ResourceLoadError::NotFound;
+                }
+            }
+        }
+        return cachedResource;
     }
 
     // Transform the raw data into a resource
     auto resource = GetResourceLoader()->LoadResource(identifier, file, initData);
 
-    // Another thread could have loaded the resource while we were processing, so we want to check before setting to
-    // the cache.
-    cachedResource = GetCachedResource(identifier, true);
-
+    // Keep replaced values alive until after the cache lock is released. Resource destructors
+    // can load other resources and therefore must not run while mMutex is held.
+    std::shared_ptr<IResource> discardedResource;
+    std::shared_ptr<IResource> displacedResource;
     {
         const std::lock_guard<std::mutex> lock(mMutex);
 
-        if (cachedResource != nullptr) {
+        auto cacheIt = mResourceCache.find(identifier);
+        if (cacheIt != mResourceCache.end()) {
+            cachedResource = GetCachedResource(cacheIt->second);
+        }
+        if (cachedResource) {
             // If another thread has already loaded this resource, discard the work we already did and return from
             // cache.
+            discardedResource = std::move(resource);
             resource = cachedResource;
-        }
-
-        // Set the cache to the loaded resource
-        if (resource != nullptr) {
-            mResourceCache[identifier] = resource;
         } else {
-            mResourceCache[identifier] = ResourceLoadError::NotFound;
+            if (cacheIt != mResourceCache.end() &&
+                std::holds_alternative<std::shared_ptr<IResource>>(cacheIt->second)) {
+                displacedResource = std::move(std::get<std::shared_ptr<IResource>>(cacheIt->second));
+            }
+
+            const auto cacheValue = resource != nullptr
+                                        ? std::variant<ResourceLoadError, std::shared_ptr<IResource>>(resource)
+                                        : std::variant<ResourceLoadError, std::shared_ptr<IResource>>(
+                                              ResourceLoadError::NotFound);
+            if (cacheIt == mResourceCache.end()) {
+                mResourceCache.emplace(identifier, cacheValue);
+            } else {
+                cacheIt->second = cacheValue;
+            }
         }
     }
 
@@ -286,11 +346,26 @@ ResourceManager::LoadResourceAsync(const ResourceIdentifier& identifier, bool lo
         return promise->get_future().share();
     }
 
-    return GetThreadPool()->Get()->submit_task(
-        [this, identifier, loadExact, initData]() -> std::shared_ptr<IResource> {
-            return LoadResourceProcess(identifier, loadExact, initData);
-        },
-        priority);
+    if (!BeginAsyncTask()) {
+        return MakeReadySharedFuture<std::shared_ptr<IResource>>(nullptr);
+    }
+    try {
+        return GetThreadPool()->Get()->submit_task(
+            [this, identifier, loadExact, initData]() -> std::shared_ptr<IResource> {
+                try {
+                    auto resource = LoadResourceProcess(identifier, loadExact, initData);
+                    FinishAsyncTask();
+                    return resource;
+                } catch (...) {
+                    FinishAsyncTask();
+                    throw;
+                }
+            },
+            priority);
+    } catch (...) {
+        FinishAsyncTask();
+        throw;
+    }
 }
 
 std::shared_future<std::shared_ptr<IResource>>
@@ -394,7 +469,7 @@ ResourceManager::LoadResourcesProcess(const ResourceFilter& filter) {
 
     for (size_t i = 0; i < fileList->size(); i++) {
         auto fileName = std::string(fileList->operator[](i));
-        auto resource = LoadResource({ fileName, filter.Owner, filter.Parent });
+        auto resource = LoadResourceProcess({ fileName, filter.Owner, filter.Parent }, false, nullptr);
         loadedList->push_back(resource);
     }
 
@@ -403,11 +478,26 @@ ResourceManager::LoadResourcesProcess(const ResourceFilter& filter) {
 
 std::shared_future<std::shared_ptr<std::vector<std::shared_ptr<IResource>>>>
 ResourceManager::LoadResourcesAsync(const ResourceFilter& filter, BS::priority_t priority) {
-    return GetThreadPool()->Get()->submit_task(
-        [this, filter]() -> std::shared_ptr<std::vector<std::shared_ptr<IResource>>> {
-            return LoadResourcesProcess(filter);
-        },
-        priority);
+    if (!BeginAsyncTask()) {
+        return MakeReadySharedFuture(std::make_shared<std::vector<std::shared_ptr<IResource>>>());
+    }
+    try {
+        return GetThreadPool()->Get()->submit_task(
+            [this, filter]() -> std::shared_ptr<std::vector<std::shared_ptr<IResource>>> {
+                try {
+                    auto resources = LoadResourcesProcess(filter);
+                    FinishAsyncTask();
+                    return resources;
+                } catch (...) {
+                    FinishAsyncTask();
+                    throw;
+                }
+            },
+            priority);
+    } catch (...) {
+        FinishAsyncTask();
+        throw;
+    }
 }
 
 std::shared_future<std::shared_ptr<std::vector<std::shared_ptr<IResource>>>>
@@ -424,19 +514,33 @@ std::shared_ptr<std::vector<std::shared_ptr<IResource>>> ResourceManager::LoadRe
 }
 
 void ResourceManager::DirtyResources(const ResourceFilter& filter) {
-    GetThreadPool()->Get()->submit_task([this, filter]() -> void {
-        auto list = GetArchiveManager()->ListFiles(filter.IncludeMasks, filter.ExcludeMasks);
+    if (!BeginAsyncTask()) {
+        return;
+    }
+    try {
+        GetThreadPool()->Get()->submit_task([this, filter]() -> void {
+            try {
+                auto list = GetArchiveManager()->ListFiles(filter.IncludeMasks, filter.ExcludeMasks);
 
-        for (const auto& key : *list.get()) {
-            auto resource = GetCachedResource({ key, filter.Owner, filter.Parent });
-            // If it's a resource, we will set the dirty flag, else we will just unload it.
-            if (resource != nullptr) {
-                resource->Dirty();
-            } else {
-                UnloadResource({ key, filter.Owner, filter.Parent });
+                for (const auto& key : *list.get()) {
+                    auto resource = GetCachedResource({ key, filter.Owner, filter.Parent });
+                    // If it's a resource, we will set the dirty flag, else we will just unload it.
+                    if (resource != nullptr) {
+                        resource->Dirty();
+                    } else {
+                        UnloadResource({ key, filter.Owner, filter.Parent });
+                    }
+                }
+                FinishAsyncTask();
+            } catch (...) {
+                FinishAsyncTask();
+                throw;
             }
-        }
-    });
+        });
+    } catch (...) {
+        FinishAsyncTask();
+        throw;
+    }
 }
 
 void ResourceManager::DirtyResources(const std::string& searchMask) {
@@ -448,7 +552,25 @@ void ResourceManager::UnloadResourcesAsync(const std::string& searchMask, BS::pr
 }
 
 void ResourceManager::UnloadResourcesAsync(const ResourceFilter& filter, BS::priority_t priority) {
-    GetThreadPool()->Get()->submit_task([this, filter]() -> void { UnloadResourcesProcess(filter); }, priority);
+    if (!BeginAsyncTask()) {
+        return;
+    }
+    try {
+        GetThreadPool()->Get()->submit_task(
+            [this, filter]() -> void {
+                try {
+                    UnloadResourcesProcess(filter);
+                    FinishAsyncTask();
+                } catch (...) {
+                    FinishAsyncTask();
+                    throw;
+                }
+            },
+            priority);
+    } catch (...) {
+        FinishAsyncTask();
+        throw;
+    }
 }
 
 void ResourceManager::UnloadResources(const std::string& searchMask) {
@@ -481,10 +603,14 @@ size_t ResourceManager::UnloadResource(const ResourceIdentifier& identifier) {
     // the mutex.
     std::variant<ResourceLoadError, std::shared_ptr<IResource>> value = nullptr;
     size_t ret = 0;
-    // We can only erase the resource if we have any resources for that owner.
-    if (mResourceCache.contains(identifier)) {
+    {
         const std::lock_guard<std::mutex> lock(mMutex);
-        mResourceCache.erase(identifier);
+        auto it = mResourceCache.find(identifier);
+        if (it != mResourceCache.end()) {
+            value = std::move(it->second);
+            mResourceCache.erase(it);
+            ret = 1;
+        }
     }
 
     return ret;

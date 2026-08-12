@@ -3,6 +3,27 @@
 #include <fstream>
 
 namespace Ship {
+namespace {
+
+constexpr char kMigrationMarker[] = ".lus-app-data-migrated";
+constexpr char kMigrationPendingMarker[] = ".lus-app-data-migration-pending";
+
+} // namespace
+
+bool AppDataMigrationNeedsLegacyFallback(const std::filesystem::path& destination, std::error_code& error) {
+    error.clear();
+    if (std::filesystem::exists(destination / kMigrationMarker, error)) {
+        return false;
+    }
+    if (error) {
+        return false;
+    }
+    const bool pending = std::filesystem::exists(destination / kMigrationPendingMarker, error);
+    if (error || pending) {
+        return pending;
+    }
+    return std::filesystem::is_empty(destination, error) && !error;
+}
 
 bool MigrateAppData(const std::filesystem::path& source, const std::filesystem::path& destination,
                     std::error_code& error) {
@@ -16,9 +37,28 @@ bool MigrateAppData(const std::filesystem::path& source, const std::filesystem::
         return false;
     }
 
-    const auto markerPath = destination / ".lus-app-data-migrated";
+    const auto markerPath = destination / kMigrationMarker;
+    const auto pendingMarkerPath = destination / kMigrationPendingMarker;
     if (std::filesystem::exists(markerPath, error)) {
         return !error;
+    }
+
+    bool pendingMigration = std::filesystem::exists(pendingMarkerPath, error);
+    if (error) {
+        return false;
+    }
+    if (!pendingMigration && std::filesystem::is_empty(destination, error)) {
+        if (error) {
+            return false;
+        }
+        std::ofstream pendingMarker(pendingMarkerPath, std::ios::binary | std::ios::trunc);
+        pendingMarker << "1\n";
+        pendingMarker.close();
+        if (!pendingMarker) {
+            error = std::make_error_code(std::errc::io_error);
+            return false;
+        }
+        pendingMigration = true;
     }
 
     const auto finishMigration = [&]() {
@@ -28,6 +68,14 @@ bool MigrateAppData(const std::filesystem::path& source, const std::filesystem::
         if (!marker) {
             error = std::make_error_code(std::errc::io_error);
             return false;
+        }
+        if (pendingMigration) {
+            std::error_code cleanupError;
+            std::filesystem::remove(pendingMarkerPath, cleanupError);
+            if (cleanupError) {
+                error = cleanupError;
+                return false;
+            }
         }
         return true;
     };
@@ -42,11 +90,11 @@ bool MigrateAppData(const std::filesystem::path& source, const std::filesystem::
         return false;
     }
 
-    for (std::filesystem::recursive_directory_iterator entry(source, error), end; entry != end;
-         entry.increment(error)) {
-        if (error) {
-            return false;
-        }
+    std::filesystem::recursive_directory_iterator entry(source, error), end;
+    if (error) {
+        return false;
+    }
+    while (entry != end) {
 
         const auto relativePath = std::filesystem::relative(entry->path(), source, error);
         if (error) {
@@ -62,11 +110,23 @@ bool MigrateAppData(const std::filesystem::path& source, const std::filesystem::
             std::filesystem::create_directories(targetPath, error);
         } else if (std::filesystem::is_regular_file(status)) {
             std::filesystem::create_directories(targetPath.parent_path(), error);
-            if (!error) {
-                std::filesystem::copy_file(entry->path(), targetPath, std::filesystem::copy_options::skip_existing,
-                                           error);
+            if (!error && !std::filesystem::exists(targetPath, error)) {
+                auto stagingPath = targetPath;
+                stagingPath += ".lus-migration-copy";
+                std::filesystem::remove(stagingPath, error);
+                if (!error) {
+                    std::filesystem::copy_file(entry->path(), stagingPath,
+                                               std::filesystem::copy_options::overwrite_existing, error);
+                }
+                if (!error) {
+                    std::filesystem::rename(stagingPath, targetPath, error);
+                }
             }
         }
+        if (error) {
+            return false;
+        }
+        entry.increment(error);
         if (error) {
             return false;
         }

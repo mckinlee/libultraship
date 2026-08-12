@@ -205,9 +205,8 @@ InputEditorSchemaValidation ControlDeck::ValidateInputEditorSchema() const {
             if (row.bitmask == 0 || (row.bitmask & (row.bitmask - 1)) != 0 || !bitmasks.insert(row.bitmask).second) {
                 return fail("Button masks must be unique nonzero single bits.");
             }
-            const auto known = mButtonNames.find(row.bitmask);
-            if (known == mButtonNames.end() || known->second != row.label) {
-                return fail("The input schema must exactly match the ControlDeck button map.");
+            if (!mButtonNames.contains(row.bitmask)) {
+                return fail("The input schema must use buttons from the ControlDeck button map.");
             }
         }
     }

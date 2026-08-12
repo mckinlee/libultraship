@@ -5,6 +5,8 @@
 #include "ship/controller/controldeck/ControlPort.h"
 #include "ship/controller/controldevice/controller/Controller.h"
 #include "ship/core/Context.h"
+#include "libultraship/bridge/controllerbridge.h"
+#include "libultraship/libultra/os.h"
 
 namespace Ship {
 namespace {
@@ -31,6 +33,11 @@ class TestControlDeck final : public ControlDeck {
     }
 
     void WriteToPad(void*) override {
+        mWroteToPad = true;
+    }
+
+    bool WroteToPad() const {
+        return mWroteToPad;
     }
 
     void AddControllerBackReference(const std::shared_ptr<ControlDeck>& self) {
@@ -41,6 +48,7 @@ class TestControlDeck final : public ControlDeck {
 
   private:
     std::shared_ptr<ConsoleVariable> mTestConsoleVariable;
+    bool mWroteToPad = false;
 };
 
 TEST(ControlDeckTest, PreservesGameSpecificButtonNames) {
@@ -66,6 +74,27 @@ TEST(ControlDeckTest, ReleasesControllerBackReferencesWithoutDeletingConfigurati
 
     EXPECT_TRUE(releasedDeck.expired());
     EXPECT_STREQ(consoleVariables->GetString(kTestButtonMappingIds, ""), "persistent-mapping");
+}
+
+TEST(ControlDeckTest, LibultraDoesNotRetainTheControlDeckAfterBridgeTeardown) {
+    auto context = Context::CreateInstance("Libultra controller lifecycle test", "libultra-controller-test");
+    auto consoleVariables = std::make_shared<ConsoleVariable>();
+    auto deck = std::make_shared<TestControlDeck>(
+        std::unordered_map<CONTROLLERBUTTONS_T, std::string>{ { kTestButton, "Test" } }, consoleVariables);
+    context->GetChildren().Add(deck);
+    ControllerSetControlDeck(deck);
+
+    OSContPad pads[MAXCONTROLLERS]{};
+    osContGetReadData(pads);
+    EXPECT_TRUE(deck->WroteToPad());
+
+    std::weak_ptr<ControlDeck> releasedDeck = deck;
+    ControllerSetControlDeck(nullptr);
+    EXPECT_GE(static_cast<int32_t>(context->GetChildren().Remove(deck, true)), 0);
+    deck.reset();
+
+    EXPECT_TRUE(releasedDeck.expired());
+    context.reset();
 }
 
 } // namespace

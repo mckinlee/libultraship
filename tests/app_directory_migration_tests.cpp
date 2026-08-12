@@ -36,6 +36,7 @@ TEST(AppDirectoryMigrationTest, CopiesMissingLegacyDataOnceWithoutReplacingNewer
     EXPECT_EQ(ReadText(application / "controllers" / "gamepad.json"), "legacy controller");
     EXPECT_EQ(ReadText(legacy / "default.sav"), "legacy save");
     EXPECT_TRUE(std::filesystem::is_regular_file(application / ".lus-app-data-migrated"));
+    EXPECT_FALSE(std::filesystem::exists(application / ".lus-app-data-migration-pending"));
 
     ASSERT_TRUE(std::filesystem::remove(application / "default.sav"));
     ASSERT_TRUE(MigrateAppData(legacy, application, error));
@@ -82,6 +83,55 @@ TEST(AppDirectoryMigrationTest, DoesNotImportLegacyDataCreatedAfterFirstRun) {
     std::ofstream(legacy / "default.sav", std::ios::binary) << "other application save";
     ASSERT_TRUE(MigrateAppData(legacy, application, error));
     EXPECT_FALSE(std::filesystem::exists(application / "default.sav"));
+
+    std::filesystem::remove_all(root, error);
+    EXPECT_FALSE(error);
+}
+
+TEST(AppDirectoryMigrationTest, KeepsLegacyFallbackAfterAPartialMigrationFailure) {
+    const auto root = std::filesystem::temp_directory_path() /
+                      ("lus-app-directory-partial-" +
+                       std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    const auto legacy = root / "libultraship";
+    const auto application = root / "township";
+    ASSERT_TRUE(std::filesystem::create_directories(legacy / "controllers"));
+    ASSERT_TRUE(std::filesystem::create_directories(application));
+    std::ofstream(legacy / "settings.json") << "legacy settings";
+    std::ofstream(legacy / "controllers" / "gamepad.json") << "legacy controller";
+    std::ofstream(application / ".lus-app-data-migration-pending") << "1\n";
+    std::ofstream(application / "settings.json") << "legacy settings";
+    std::ofstream(application / "controllers") << "blocks controller directory";
+
+    std::error_code error;
+    EXPECT_FALSE(MigrateAppData(legacy, application, error));
+    EXPECT_TRUE(error);
+    EXPECT_FALSE(std::filesystem::exists(application / ".lus-app-data-migrated"));
+    error.clear();
+    EXPECT_TRUE(AppDataMigrationNeedsLegacyFallback(application, error));
+    EXPECT_FALSE(error);
+
+    std::filesystem::remove_all(root, error);
+    EXPECT_FALSE(error);
+}
+
+TEST(AppDirectoryMigrationTest, ReplacesAnInterruptedStagingCopyOnRetry) {
+    const auto root = std::filesystem::temp_directory_path() /
+                      ("lus-app-directory-retry-" +
+                       std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    const auto legacy = root / "libultraship";
+    const auto application = root / "township";
+    ASSERT_TRUE(std::filesystem::create_directories(legacy));
+    ASSERT_TRUE(std::filesystem::create_directories(application));
+    std::ofstream(legacy / "default.sav", std::ios::binary) << "complete legacy save";
+    std::ofstream(application / ".lus-app-data-migration-pending") << "1\n";
+    std::ofstream(application / "default.sav.lus-migration-copy", std::ios::binary) << "partial";
+
+    std::error_code error;
+    ASSERT_TRUE(MigrateAppData(legacy, application, error));
+    EXPECT_FALSE(error);
+    EXPECT_EQ(ReadText(application / "default.sav"), "complete legacy save");
+    EXPECT_FALSE(std::filesystem::exists(application / "default.sav.lus-migration-copy"));
+    EXPECT_TRUE(std::filesystem::is_regular_file(application / ".lus-app-data-migrated"));
 
     std::filesystem::remove_all(root, error);
     EXPECT_FALSE(error);

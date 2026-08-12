@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <condition_variable>
 #include <unordered_set>
 #include <string>
 #include <list>
@@ -441,7 +442,13 @@ class ResourceManager : public Component {
     std::shared_ptr<Archive> mDefaultCacheArchive = nullptr;
     std::shared_ptr<ThreadPool> mThreadPool;
     std::shared_ptr<Keystore> mKeystore;
+    std::mutex mAsyncTaskMutex;
+    std::condition_variable mAsyncTaskFinished;
+    size_t mAsyncTaskCount = 0;
+    bool mAcceptingAsyncTasks = true;
 
     std::shared_ptr<ThreadPool> GetThreadPool();
+    bool BeginAsyncTask();
+    void FinishAsyncTask();
 };
 } // namespace Ship

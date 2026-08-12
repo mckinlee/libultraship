@@ -101,9 +101,6 @@ TEST(InputEditorSchemaTest, RejectsEveryMalformedSchemaClass) {
     schema.buttonGroups[0].buttons[1].bitmask = schema.buttonGroups[0].buttons[0].bitmask;
     EXPECT_TRUE(invalid(schema));
     schema = ValidSchema();
-    schema.buttonGroups[0].buttons[0].label = "Wrong";
-    EXPECT_TRUE(invalid(schema));
-    schema = ValidSchema();
     schema.buttonGroups.pop_back();
     EXPECT_TRUE(invalid(schema));
     schema = ValidSchema();
@@ -160,6 +157,7 @@ TEST(InputEditorSchemaTest, LibultrashipExplicitSchemaPreservesGameSpecificLayou
 TEST(InputEditorSchemaTest, DefaultN64SchemaPreservesButtonPresentation) {
     LUS::ControlDeck controlDeck(nullptr, std::make_shared<ConsoleVariable>());
 
+    ASSERT_TRUE(controlDeck.ValidateInputEditorSchema().valid);
     const auto& groups = controlDeck.GetInputEditorSchema().buttonGroups;
     ASSERT_EQ(groups.size(), 2U);
     EXPECT_EQ(groups[0].buttons[0].color, InputEditorButtonColor::Blue);
@@ -169,6 +167,16 @@ TEST(InputEditorSchemaTest, DefaultN64SchemaPreservesButtonPresentation) {
     EXPECT_EQ(groups[0].buttons[6].color, InputEditorButtonColor::Yellow);
     EXPECT_EQ(groups[1].buttons[0].label, ICON_FA_ARROW_UP);
     EXPECT_EQ(groups[1].buttons[0].color, InputEditorButtonColor::Grey);
+}
+
+TEST(InputEditorSchemaTest, AllowsPresentationLabelsToDifferFromMappingNames) {
+    auto schema = ValidSchema();
+    schema.buttonGroups[0].buttons[0].label = "Confirm";
+    SchemaControlDeck controlDeck({ { 0x1, "A" }, { 0x2, "B" }, { 0x20, "Z" } }, std::move(schema));
+
+    EXPECT_TRUE(controlDeck.ValidateInputEditorSchema().valid);
+    EXPECT_EQ(controlDeck.GetButtonNameForBitmask(0x1), "A");
+    EXPECT_EQ(controlDeck.GetInputEditorSchema().buttonGroups[0].buttons[0].label, "Confirm");
 }
 
 } // namespace

@@ -369,14 +369,13 @@ std::string Context::GetAppDirectoryPath(const std::string& appName) {
     if (!appPath.empty()) {
         if (!appName.empty() && effectiveAppName != "libultraship") {
             const std::lock_guard<std::mutex> lock(sAppDirectoryMigrationMutex);
-            std::error_code pathError;
-            const bool appPathHadData = std::filesystem::exists(appPath, pathError) &&
-                                        !std::filesystem::is_empty(appPath, pathError);
             const std::string legacyPath = GetSdlPrefPath("libultraship");
             std::error_code migrationError;
-            if (!pathError && !MigrateAppData(legacyPath, appPath, migrationError) && !appPathHadData &&
-                !legacyPath.empty()) {
-                return legacyPath;
+            if (!MigrateAppData(legacyPath, appPath, migrationError) && !legacyPath.empty()) {
+                std::error_code fallbackError;
+                if (AppDataMigrationNeedsLegacyFallback(appPath, fallbackError) && !fallbackError) {
+                    return legacyPath;
+                }
             }
         }
         return appPath;
