@@ -153,6 +153,21 @@ void InputEditorWindow::DrawAnalogPreview(const char* label, ImVec2 stick, float
 #define CHIP_COLOR_N64_YELLOW ImVec4(0.5f, 0.314f, 0.0f, 1.0f)
 #define CHIP_COLOR_N64_RED ImVec4(0.392f, 0.0f, 0.0f, 1.0f)
 
+ImVec4 InputEditorButtonChipColor(Ship::InputEditorButtonColor color) {
+    switch (color) {
+        case Ship::InputEditorButtonColor::Blue:
+            return CHIP_COLOR_N64_BLUE;
+        case Ship::InputEditorButtonColor::Green:
+            return CHIP_COLOR_N64_GREEN;
+        case Ship::InputEditorButtonColor::Yellow:
+            return CHIP_COLOR_N64_YELLOW;
+        case Ship::InputEditorButtonColor::Red:
+            return CHIP_COLOR_N64_RED;
+        default:
+            return CHIP_COLOR_N64_GREY;
+    }
+}
+
 #define BUTTON_COLOR_KEYBOARD_BEIGE ImVec4(0.651f, 0.482f, 0.357f, 0.5f)
 #define BUTTON_COLOR_KEYBOARD_BEIGE_HOVERED ImVec4(0.651f, 0.482f, 0.357f, 1.0f)
 
@@ -1225,7 +1240,8 @@ void InputEditorWindow::DrawPortTab(uint8_t portIndex) {
             const ImGuiTreeNodeFlags flags = group.defaultOpen ? ImGuiTreeNodeFlags_DefaultOpen : 0;
             if (ImGui::CollapsingHeader(group.label.c_str(), NULL, flags)) {
                 for (const auto& button : group.buttons) {
-                    DrawButtonLine(button.label.c_str(), portIndex, button.bitmask);
+                    DrawButtonLine(button.label.c_str(), portIndex, button.bitmask,
+                                   InputEditorButtonChipColor(button.color));
                 }
             }
         }

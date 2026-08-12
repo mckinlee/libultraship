@@ -18,6 +18,7 @@
 #include "ship/window/FileDrop.h"
 #include "ship/log/Logger.h"
 #include "ship/thread/ThreadPool.h"
+#include "ship/utils/AppDirectoryMigration.h"
 #include "ship/events/Events.h"
 #ifdef ENABLE_SCRIPTING
 #include "ship/scripting/ScriptLoader.h"
@@ -26,6 +27,18 @@
 
 namespace Ship {
 namespace {
+std::mutex sAppDirectoryMigrationMutex;
+
+std::string GetSdlPrefPath(const std::string& appName) {
+    char* prefPath = SDL_GetPrefPath(nullptr, appName.c_str());
+    if (prefPath == nullptr) {
+        return {};
+    }
+    std::string result(prefPath);
+    SDL_free(prefPath);
+    return result;
+}
+
 void UpdateBridgeCachesIfPresent(const std::shared_ptr<Context>& context) {
     if (!context) {
         return;
@@ -352,11 +365,21 @@ std::string Context::GetAppDirectoryPath(const std::string& appName) {
 
 #ifdef NON_PORTABLE
     const std::string effectiveAppName = appName.empty() ? "libultraship" : appName;
-    char* prefpath = SDL_GetPrefPath(NULL, effectiveAppName.c_str());
-    if (prefpath != NULL) {
-        std::string ret(prefpath);
-        SDL_free(prefpath);
-        return ret;
+    const std::string appPath = GetSdlPrefPath(effectiveAppName);
+    if (!appPath.empty()) {
+        if (!appName.empty() && effectiveAppName != "libultraship") {
+            const std::lock_guard<std::mutex> lock(sAppDirectoryMigrationMutex);
+            std::error_code pathError;
+            const bool appPathHadData = std::filesystem::exists(appPath, pathError) &&
+                                        !std::filesystem::is_empty(appPath, pathError);
+            const std::string legacyPath = GetSdlPrefPath("libultraship");
+            std::error_code migrationError;
+            if (!pathError && !MigrateAppData(legacyPath, appPath, migrationError) && !appPathHadData &&
+                !legacyPath.empty()) {
+                return legacyPath;
+            }
+        }
+        return appPath;
     }
 #endif
 

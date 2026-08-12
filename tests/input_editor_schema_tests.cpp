@@ -5,6 +5,7 @@
 #include "ship/config/ConsoleVariable.h"
 #include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/controller/controldeck/ControlPort.h"
+#include "ship/window/gui/IconsFontAwesome4.h"
 
 namespace Ship {
 namespace {
@@ -154,6 +155,20 @@ TEST(InputEditorSchemaTest, LibultrashipExplicitSchemaPreservesGameSpecificLayou
     EXPECT_EQ(schema.buttonGroups[0].label, "Face");
     EXPECT_EQ(schema.buttonGroups[1].label, "Shoulders");
     EXPECT_EQ(schema.sticks[1].label, "C-Stick");
+}
+
+TEST(InputEditorSchemaTest, DefaultN64SchemaPreservesButtonPresentation) {
+    LUS::ControlDeck controlDeck(nullptr, std::make_shared<ConsoleVariable>());
+
+    const auto& groups = controlDeck.GetInputEditorSchema().buttonGroups;
+    ASSERT_EQ(groups.size(), 2U);
+    EXPECT_EQ(groups[0].buttons[0].color, InputEditorButtonColor::Blue);
+    EXPECT_EQ(groups[0].buttons[1].color, InputEditorButtonColor::Green);
+    EXPECT_EQ(groups[0].buttons[2].color, InputEditorButtonColor::Red);
+    EXPECT_EQ(groups[0].buttons[6].label, std::string("C ") + ICON_FA_ARROW_UP);
+    EXPECT_EQ(groups[0].buttons[6].color, InputEditorButtonColor::Yellow);
+    EXPECT_EQ(groups[1].buttons[0].label, ICON_FA_ARROW_UP);
+    EXPECT_EQ(groups[1].buttons[0].color, InputEditorButtonColor::Grey);
 }
 
 } // namespace

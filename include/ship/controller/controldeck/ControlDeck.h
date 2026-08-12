@@ -14,9 +14,12 @@
 namespace Ship {
 class WheelHandler;
 
+enum class InputEditorButtonColor : uint8_t { Grey, Blue, Green, Yellow, Red };
+
 struct InputEditorButtonRow {
     CONTROLLERBUTTONS_T bitmask = 0;
     std::string label;
+    InputEditorButtonColor color = InputEditorButtonColor::Grey;
 };
 
 struct InputEditorButtonGroup {

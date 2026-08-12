@@ -44,6 +44,27 @@ class ContextRecordingMenuBar final : public GuiMenuBar {
     }
 };
 
+class ContextOwningGui final : public Gui {
+  public:
+    void OwnContext(ImGuiContext* context) {
+        mImGuiContext = context;
+        ImGui::SetCurrentContext(context);
+        mImGuiIo = &ImGui::GetIO();
+    }
+
+    int rendererShutdowns = 0;
+    int windowManagerShutdowns = 0;
+
+  protected:
+    void ImGuiBackendShutdown() override {
+        ++rendererShutdowns;
+    }
+
+    void ImGuiWMShutdown() override {
+        ++windowManagerShutdowns;
+    }
+};
+
 TEST(GuiLifecycleTest, ShutdownWithoutContextIsSafe) {
     ASSERT_EQ(ImGui::GetCurrentContext(), nullptr);
     Gui gui;
@@ -51,6 +72,36 @@ TEST(GuiLifecycleTest, ShutdownWithoutContextIsSafe) {
     gui.ShutDownImGui(nullptr);
 
     EXPECT_EQ(ImGui::GetCurrentContext(), nullptr);
+}
+
+TEST(GuiLifecycleTest, ShutdownDestroysOnlyTheOwnedContext) {
+    ContextOwningGui first;
+    ContextOwningGui second;
+    first.OwnContext(ImGui::CreateContext());
+    ImGuiContext* secondContext = ImGui::CreateContext();
+    second.OwnContext(secondContext);
+
+    first.ShutDownImGui(nullptr);
+
+    EXPECT_EQ(ImGui::GetCurrentContext(), secondContext);
+    EXPECT_EQ(first.rendererShutdowns, 1);
+    EXPECT_EQ(first.windowManagerShutdowns, 1);
+    EXPECT_EQ(second.rendererShutdowns, 0);
+    EXPECT_EQ(second.windowManagerShutdowns, 0);
+
+    second.ShutDownImGui(nullptr);
+    EXPECT_EQ(ImGui::GetCurrentContext(), nullptr);
+}
+
+TEST(GuiLifecycleTest, UninitializedGuiDoesNotDestroyAnotherContext) {
+    Gui uninitialized;
+    ImGuiContext* context = ImGui::CreateContext();
+    ImGui::SetCurrentContext(context);
+
+    uninitialized.ShutDownImGui(nullptr);
+
+    EXPECT_EQ(ImGui::GetCurrentContext(), context);
+    ImGui::DestroyContext(context);
 }
 
 TEST(GuiLifecycleTest, MenuAndMenuBarInheritGuiContextBeforeInitialization) {

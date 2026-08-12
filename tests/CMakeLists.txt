@@ -41,6 +41,7 @@ add_executable(libultraship_tests
     gui_lifecycle_tests.cpp
     input_editor_schema_tests.cpp
     app_path_bridge_tests.cpp
+    app_directory_migration_tests.cpp
     rumble_mapping_factory_tests.cpp
     sdl_axis_direction_to_button_mapping_tests.cpp
 )

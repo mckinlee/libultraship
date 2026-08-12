@@ -46,6 +46,9 @@ void ResourceManager::OnInit(const nlohmann::json& initArgs) {
 
 void ResourceManager::OnRemoved(bool forced) {
     Component::OnRemoved(forced);
+    if (GetParents().GetCount() != 0) {
+        return;
+    }
     mResourceLoader.reset();
     mArchiveManager.reset();
 }

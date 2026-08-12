@@ -28,7 +28,8 @@ Gui::Gui(const std::vector<std::shared_ptr<GuiWindow>>& guiWindows, std::shared_
          std::shared_ptr<ConsoleVariable> consoleVariable, std::shared_ptr<Window> window,
          std::shared_ptr<Config> config, std::shared_ptr<ResourceManager> resourceManager,
          std::shared_ptr<GameOverlay> gameOverlay)
-    : Component("Gui", std::move(context)), mNeedsConsoleVariableSave(false), mGameOverlay(std::move(gameOverlay)),
+    : Component("Gui", std::move(context)), mImGuiContext(nullptr), mImGuiIo(nullptr),
+      mNeedsConsoleVariableSave(false), mGameOverlay(std::move(gameOverlay)),
       mConsoleVariable(std::move(consoleVariable)), mWindow(std::move(window)), mConfig(std::move(config)),
       mResourceManager(std::move(resourceManager)) {
     if (!mGameOverlay) {
@@ -90,8 +91,8 @@ void Gui::OnInit(const nlohmann::json& initArgs) {
                                                      "Console", ImVec2(520, 600), ImGuiWindowFlags_NoFocusOnAppearing));
     }
 
-    ImGuiContext* ctx = ImGui::CreateContext();
-    ImGui::SetCurrentContext(ctx);
+    mImGuiContext = ImGui::CreateContext();
+    ImGui::SetCurrentContext(mImGuiContext);
     mImGuiIo = &ImGui::GetIO();
     mImGuiIo->ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NoMouseCursorChange;
 
@@ -152,12 +153,19 @@ void Gui::ImGuiWMInit() {
 }
 
 void Gui::ShutDownImGui(Ship::Window* window) {
-    if (ImGui::GetCurrentContext() == nullptr) {
+    if (mImGuiContext == nullptr) {
         return;
     }
+    ImGuiContext* previousContext = ImGui::GetCurrentContext();
+    ImGui::SetCurrentContext(mImGuiContext);
     ImGuiWMShutdown();
     ImGuiBackendShutdown();
-    ImGui::DestroyContext();
+    ImGui::DestroyContext(mImGuiContext);
+    if (previousContext != mImGuiContext) {
+        ImGui::SetCurrentContext(previousContext);
+    }
+    mImGuiContext = nullptr;
+    mImGuiIo = nullptr;
 }
 
 void Gui::ImGuiWMShutdown() {

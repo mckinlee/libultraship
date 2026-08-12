@@ -5,6 +5,7 @@
 #include "libultraship/controller/controldevice/controller/mapping/ControllerDefaultMappings.h"
 #include "ship/utils/StringHelper.h"
 #include "ship/controller/controldevice/controller/mapping/mouse/WheelHandler.h"
+#include "ship/window/gui/IconsFontAwesome4.h"
 #include <imgui.h>
 
 #include <algorithm>
@@ -17,23 +18,27 @@ Ship::InputEditorSchema DefaultInputEditorSchema() {
         {
             { "Buttons",
               {
-                  { BTN_A, "A" },
-                  { BTN_B, "B" },
-                  { BTN_START, "Start" },
+                  { BTN_A, "A", Ship::InputEditorButtonColor::Blue },
+                  { BTN_B, "B", Ship::InputEditorButtonColor::Green },
+                  { BTN_START, "Start", Ship::InputEditorButtonColor::Red },
                   { BTN_L, "L" },
                   { BTN_R, "R" },
                   { BTN_Z, "Z" },
-                  { BTN_CUP, "CUp" },
-                  { BTN_CDOWN, "CDown" },
-                  { BTN_CLEFT, "CLeft" },
-                  { BTN_CRIGHT, "CRight" },
+                  { BTN_CUP, StringHelper::Sprintf("C %s", ICON_FA_ARROW_UP),
+                    Ship::InputEditorButtonColor::Yellow },
+                  { BTN_CDOWN, StringHelper::Sprintf("C %s", ICON_FA_ARROW_DOWN),
+                    Ship::InputEditorButtonColor::Yellow },
+                  { BTN_CLEFT, StringHelper::Sprintf("C %s", ICON_FA_ARROW_LEFT),
+                    Ship::InputEditorButtonColor::Yellow },
+                  { BTN_CRIGHT, StringHelper::Sprintf("C %s", ICON_FA_ARROW_RIGHT),
+                    Ship::InputEditorButtonColor::Yellow },
               } },
             { "D-Pad",
               {
-                  { BTN_DUP, "DUp" },
-                  { BTN_DDOWN, "DDown" },
-                  { BTN_DLEFT, "DLeft" },
-                  { BTN_DRIGHT, "DRight" },
+                  { BTN_DUP, ICON_FA_ARROW_UP },
+                  { BTN_DDOWN, ICON_FA_ARROW_DOWN },
+                  { BTN_DLEFT, ICON_FA_ARROW_LEFT },
+                  { BTN_DRIGHT, ICON_FA_ARROW_RIGHT },
               } },
         },
         {

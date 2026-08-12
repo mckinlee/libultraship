@@ -235,6 +235,7 @@ class Gui : public Component {
     void HandleMouseCapture();
 
     ImVec2 mTemporaryWindowPos; ///< Scratchpad position used when repositioning windows.
+    ImGuiContext* mImGuiContext; ///< ImGui context owned by this Gui.
     ImGuiIO* mImGuiIo;          ///< Pointer to the active ImGuiIO context.
     std::map<std::string, std::shared_ptr<GuiWindow>> mGuiWindows; ///< Registered window map (name → window).
 
