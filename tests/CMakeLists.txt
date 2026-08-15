@@ -35,6 +35,8 @@ add_executable(libultraship_tests
     resource_type_tests.cpp
     archive_self_tests.cpp
     connected_physical_device_manager_tests.cpp
+    input_editor_layout_tests.cpp
+    sdl_axis_direction_to_button_mapping_tests.cpp
     gfx_sdl_window_tests.cpp
     rumble_mapping_factory_tests.cpp
 )

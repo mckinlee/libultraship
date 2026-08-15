@@ -29,7 +29,7 @@ ControllerButton::~ControllerButton() {
 }
 
 std::string ControllerButton::GetConfigNameFromBitmask(CONTROLLERBUTTONS_T bitmask) {
-    return mControlDeck->GetButtonNameForBitmask(bitmask);
+    return std::to_string(bitmask);
 }
 
 std::unordered_map<std::string, std::shared_ptr<ControllerButtonMapping>> ControllerButton::GetAllButtonMappings() {

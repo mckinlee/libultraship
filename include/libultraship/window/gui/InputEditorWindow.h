@@ -1,8 +1,10 @@
 #pragma once
 
 #include "stdint.h"
+#include "libultraship/window/gui/InputEditorLayout.h"
 #include "ship/window/gui/GuiWindow.h"
 #include <imgui.h>
+#include <optional>
 #include <unordered_map>
 #include <string>
 #include <vector>
@@ -40,6 +42,19 @@ class InputEditorWindow : public Ship::GuiWindow {
      */
     InputEditorWindow(const std::string& consoleVariable, const std::string& name,
                       std::shared_ptr<Ship::ControlDeck> controlDeck, std::shared_ptr<Ship::Window> window);
+
+    /**
+     * @brief Constructs an InputEditorWindow with a port-specific control layout.
+     * @param consoleVariable CVar name controlling window visibility.
+     * @param name            Window title.
+     * @param controlDeck     ControlDeck for reading/writing controller mappings.
+     * @param window          Window for GUI and mouse capture state.
+     * @param layout          Button groups, sticks, and optional device sections to display.
+     * @throws std::invalid_argument if the deck is null or the layout is invalid.
+     */
+    InputEditorWindow(const std::string& consoleVariable, const std::string& name,
+                      std::shared_ptr<Ship::ControlDeck> controlDeck, std::shared_ptr<Ship::Window> window,
+                      InputEditorLayout layout);
 
     /** @brief Destroys the InputEditorWindow and releases any active rumble test state. */
     virtual ~InputEditorWindow();
@@ -238,6 +253,9 @@ class InputEditorWindow : public Ship::GuiWindow {
      */
     void DrawPortTab(uint8_t portIndex);
 
+    /** @brief Draws the port-specific layout supplied at construction. */
+    void DrawInputEditorLayout(uint8_t portIndex);
+
     std::set<CONTROLLERBUTTONS_T> mButtonsBitmasks;
     std::set<CONTROLLERBUTTONS_T> mDpadBitmasks;
     bool mInputEditorPopupOpen;
@@ -265,5 +283,6 @@ class InputEditorWindow : public Ship::GuiWindow {
 
     std::shared_ptr<Ship::ControlDeck> mControlDeck;
     std::shared_ptr<Ship::Window> mWindow;
+    std::optional<InputEditorLayout> mInputEditorLayout;
 };
 } // namespace LUS

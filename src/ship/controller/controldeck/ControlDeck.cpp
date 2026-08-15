@@ -15,7 +15,11 @@ ControlDeck::ControlDeck(std::vector<CONTROLLERBUTTONS_T> additionalBitmasks,
                          std::shared_ptr<ControllerDefaultMappings> controllerDefaultMappings,
                          std::unordered_map<CONTROLLERBUTTONS_T, std::string> buttonNames,
                          std::shared_ptr<Window> window, std::shared_ptr<ConsoleVariable> consoleVariable)
-    : Component("ControlDeck"), mWindow(std::move(window)), mConsoleVariables(std::move(consoleVariable)) {
+    : Component("ControlDeck"), mButtonNames(std::move(buttonNames)), mWindow(std::move(window)),
+      mConsoleVariables(std::move(consoleVariable)) {
+    for (const auto bitmask : additionalBitmasks) {
+        mButtonNames.try_emplace(bitmask, std::to_string(bitmask));
+    }
     mConnectedPhysicalDeviceManager = std::make_shared<ConnectedPhysicalDeviceManager>();
     mGlobalSDLDeviceSettings = std::make_shared<GlobalSDLDeviceSettings>(mConsoleVariables);
     mControllerDefaultMappings = controllerDefaultMappings == nullptr ? std::make_shared<ControllerDefaultMappings>()

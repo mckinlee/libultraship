@@ -8,15 +8,91 @@
 #include "ship/window/Window.h"
 #include "libultraship/libultra/controller.h"
 
+#include <stdexcept>
+#include <unordered_set>
+
 #define SCALE_IMGUI_SIZE(value) ((value / 13.0f) * ImGui::GetFontSize())
 
 namespace LUS {
+
+namespace {
+
+bool IsBlank(const std::string& value) {
+    return value.find_first_not_of(" \t\r\n") == std::string::npos;
+}
+
+std::string ValidateInputEditorLayout(const InputEditorLayout& layout,
+                                      const std::unordered_map<CONTROLLERBUTTONS_T, std::string>& buttonNames) {
+    if (layout.buttonGroups.empty()) {
+        return "button groups cannot be empty";
+    }
+
+    std::unordered_set<std::string> sectionLabels;
+    std::unordered_set<CONTROLLERBUTTONS_T> bitmasks;
+    for (const auto& group : layout.buttonGroups) {
+        if (IsBlank(group.label) || !sectionLabels.insert(group.label).second) {
+            return "section labels must be nonempty and unique";
+        }
+        if (group.buttons.empty()) {
+            return "button groups cannot be empty";
+        }
+        for (const auto& button : group.buttons) {
+            if (IsBlank(button.label)) {
+                return "button labels cannot be empty";
+            }
+            if (button.bitmask == 0 || (button.bitmask & (button.bitmask - 1)) != 0 ||
+                !bitmasks.insert(button.bitmask).second) {
+                return "button masks must be unique nonzero bits";
+            }
+            if (!buttonNames.contains(button.bitmask)) {
+                return "button masks must exist in the ControlDeck button map";
+            }
+        }
+    }
+    if (bitmasks.size() != buttonNames.size()) {
+        return "the layout must contain every ControlDeck button";
+    }
+
+    std::unordered_set<Ship::StickIndex> stickIndices;
+    for (const auto& stick : layout.sticks) {
+        if (IsBlank(stick.label) || !sectionLabels.insert(stick.label).second) {
+            return "section labels must be nonempty and unique";
+        }
+        if ((stick.index != Ship::LEFT_STICK && stick.index != Ship::RIGHT_STICK) ||
+            !stickIndices.insert(stick.index).second) {
+            return "stick indices must be unique supported indices";
+        }
+    }
+
+    if ((layout.capabilities.rumble && !sectionLabels.insert("Rumble").second) ||
+        (layout.capabilities.gyro && !sectionLabels.insert("Gyro").second) ||
+        (layout.capabilities.led && !sectionLabels.insert("LEDs").second)) {
+        return "section labels must be nonempty and unique";
+    }
+
+    return {};
+}
+
+} // namespace
 
 InputEditorWindow::InputEditorWindow(const std::string& consoleVariable, const std::string& name,
                                      std::shared_ptr<Ship::ControlDeck> controlDeck,
                                      std::shared_ptr<Ship::Window> window)
     : GuiWindow(nullptr, nullptr, consoleVariable, false, name, ImVec2{ -1, -1 }, ImGuiWindowFlags_None),
       mControlDeck(std::move(controlDeck)), mWindow(std::move(window)) {
+}
+
+InputEditorWindow::InputEditorWindow(const std::string& consoleVariable, const std::string& name,
+                                     std::shared_ptr<Ship::ControlDeck> controlDeck,
+                                     std::shared_ptr<Ship::Window> window, InputEditorLayout layout)
+    : InputEditorWindow(consoleVariable, name, std::move(controlDeck), std::move(window)) {
+    if (mControlDeck == nullptr) {
+        throw std::invalid_argument("InputEditorWindow requires a ControlDeck for a custom layout");
+    }
+    if (const auto error = ValidateInputEditorLayout(layout, mControlDeck->GetAllButtonNames()); !error.empty()) {
+        throw std::invalid_argument("Invalid input editor layout: " + error);
+    }
+    mInputEditorLayout = std::move(layout);
 }
 
 InputEditorWindow::~InputEditorWindow() {
@@ -152,6 +228,28 @@ void InputEditorWindow::DrawAnalogPreview(const char* label, ImVec2 stick, float
 #define CHIP_COLOR_N64_GREEN ImVec4(0.0f, 0.294f, 0.0f, 1.0f)
 #define CHIP_COLOR_N64_YELLOW ImVec4(0.5f, 0.314f, 0.0f, 1.0f)
 #define CHIP_COLOR_N64_RED ImVec4(0.392f, 0.0f, 0.0f, 1.0f)
+
+namespace {
+
+ImVec4 GetInputEditorChipColor(InputEditorChipColor color) {
+    switch (color) {
+        case InputEditorChipColor::Blue:
+            return CHIP_COLOR_N64_BLUE;
+        case InputEditorChipColor::Green:
+            return CHIP_COLOR_N64_GREEN;
+        case InputEditorChipColor::Yellow:
+            return CHIP_COLOR_N64_YELLOW;
+        case InputEditorChipColor::Red:
+            return CHIP_COLOR_N64_RED;
+        case InputEditorChipColor::Purple:
+            return ImVec4(0.431f, 0.369f, 0.706f, 1.0f);
+        case InputEditorChipColor::Gray:
+        default:
+            return CHIP_COLOR_N64_GREY;
+    }
+}
+
+} // namespace
 
 #define BUTTON_COLOR_KEYBOARD_BEIGE ImVec4(0.651f, 0.482f, 0.357f, 0.5f)
 #define BUTTON_COLOR_KEYBOARD_BEIGE_HOVERED ImVec4(0.651f, 0.482f, 0.357f, 1.0f)
@@ -1210,6 +1308,15 @@ void InputEditorWindow::DrawPortTab(uint8_t portIndex) {
         ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
 
+        if (mInputEditorLayout.has_value()) {
+            DrawInputEditorLayout(portIndex);
+            ImGui::PopStyleColor();
+            ImGui::PopStyleColor();
+            ImGui::PopStyleColor();
+            ImGui::EndTabItem();
+            return;
+        }
+
         if (ImGui::CollapsingHeader("Buttons", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
             DrawButtonLine("A", portIndex, BTN_A, CHIP_COLOR_N64_BLUE);
             DrawButtonLine("B", portIndex, BTN_B, CHIP_COLOR_N64_GREEN);
@@ -1258,6 +1365,38 @@ void InputEditorWindow::DrawPortTab(uint8_t portIndex) {
         ImGui::PopStyleColor();
         ImGui::PopStyleColor();
         ImGui::EndTabItem();
+    }
+}
+
+void InputEditorWindow::DrawInputEditorLayout(uint8_t portIndex) {
+    const auto& layout = mInputEditorLayout.value();
+    for (const auto& group : layout.buttonGroups) {
+        const auto flags = group.defaultOpen ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None;
+        if (ImGui::CollapsingHeader(group.label.c_str(), nullptr, flags)) {
+            for (const auto& button : group.buttons) {
+                ImGui::PushID(static_cast<int>(button.bitmask));
+                DrawButtonLine(button.label.c_str(), portIndex, button.bitmask, GetInputEditorChipColor(button.color));
+                ImGui::PopID();
+            }
+        }
+    }
+
+    for (const auto& stick : layout.sticks) {
+        const auto flags = stick.defaultOpen ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None;
+        if (ImGui::CollapsingHeader(stick.label.c_str(), nullptr, flags)) {
+            DrawStickSection(portIndex, static_cast<uint8_t>(stick.index), static_cast<int32_t>(stick.index),
+                             GetInputEditorChipColor(stick.color));
+        }
+    }
+
+    if (layout.capabilities.rumble && ImGui::CollapsingHeader("Rumble")) {
+        DrawRumbleSection(portIndex);
+    }
+    if (layout.capabilities.gyro && ImGui::CollapsingHeader("Gyro")) {
+        DrawGyroSection(portIndex);
+    }
+    if (layout.capabilities.led && ImGui::CollapsingHeader("LEDs")) {
+        DrawLEDSection(portIndex);
     }
 }
 

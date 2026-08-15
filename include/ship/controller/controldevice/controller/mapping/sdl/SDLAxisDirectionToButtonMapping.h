@@ -37,6 +37,9 @@ class SDLAxisDirectionToButtonMapping final : public ControllerButtonMapping, pu
     /** @brief Returns the unique string identifier for this mapping. */
     std::string GetButtonMappingId() override;
 
+    /** @brief Returns the strongest current travel in the mapped direction, scaled to 0-255. */
+    uint8_t GetAnalogValue();
+
     /** @brief Persists this mapping to the application configuration. */
     void SaveToConfig() override;
 
