@@ -117,10 +117,25 @@ TEST(InputEditorLayoutTest, CustomLayoutRequiresEveryRegisteredButtonExactlyOnce
     unknownButton.buttonGroups.front().buttons.back().bitmask = 4;
     EXPECT_THROW(InputEditorWindow("InputEditor", "Input Editor", controlDeck, nullptr, unknownButton),
                  std::invalid_argument);
+}
+
+TEST(InputEditorLayoutTest, CustomLayoutRejectsInvalidSectionLabels) {
+    auto controlDeck = std::make_shared<TestControlDeck>(
+        std::unordered_map<CONTROLLERBUTTONS_T, std::string>{ { 1, "A" }, { 2, "DUp" } });
 
     auto duplicateSection = MakeLayout();
     duplicateSection.buttonGroups.front().label = "Rumble";
     EXPECT_THROW(InputEditorWindow("InputEditor", "Input Editor", controlDeck, nullptr, duplicateSection),
+                 std::invalid_argument);
+
+    auto hiddenSectionId = MakeLayout();
+    hiddenSectionId.buttonGroups.front().label = "Buttons###shared";
+    EXPECT_THROW(InputEditorWindow("InputEditor", "Input Editor", controlDeck, nullptr, hiddenSectionId),
+                 std::invalid_argument);
+
+    auto blankSection = MakeLayout();
+    blankSection.buttonGroups.front().label = "###buttons";
+    EXPECT_THROW(InputEditorWindow("InputEditor", "Input Editor", controlDeck, nullptr, blankSection),
                  std::invalid_argument);
 }
 

@@ -120,10 +120,12 @@ class TestControlDeck final : public ControlDeck {
 class SDLAxisDirectionToButtonMappingTest : public testing::Test {
   protected:
     void SetUp() override {
-        ASSERT_TRUE(SDL_InitSubSystem(SDL_INIT_GAMEPAD));
         mPreviousImGuiContext = ImGui::GetCurrentContext();
+        mSdlInitialized = SDL_InitSubSystem(SDL_INIT_GAMEPAD);
+        ASSERT_TRUE(mSdlInitialized) << SDL_GetError();
         mImGuiContext = ImGui::CreateContext();
         ASSERT_NE(mImGuiContext, nullptr);
+        ImGui::SetCurrentContext(mImGuiContext);
 
         mInstanceId = AttachVirtualGamepad(0x0002);
         ASSERT_NE(mInstanceId, 0u) << SDL_GetError();
@@ -156,7 +158,7 @@ class SDLAxisDirectionToButtonMappingTest : public testing::Test {
     void TearDown() override {
         mControlDeck.reset();
         mWindow.reset();
-        if (ImGui::GetCurrentContext() == mImGuiContext) {
+        if (mImGuiContext != nullptr && ImGui::GetCurrentContext() == mImGuiContext) {
             ImGui::DestroyContext(mImGuiContext);
         }
         mImGuiContext = nullptr;
@@ -165,7 +167,9 @@ class SDLAxisDirectionToButtonMappingTest : public testing::Test {
             EXPECT_TRUE(SDL_DetachVirtualJoystick(instanceId)) << SDL_GetError();
         }
         mInstanceIds.clear();
-        SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
+        if (mSdlInitialized) {
+            SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
+        }
     }
 
     void SetAxisValue(SDL_Joystick* joystick, SDL_GamepadAxis axis, Sint16 value) {
@@ -192,6 +196,7 @@ class SDLAxisDirectionToButtonMappingTest : public testing::Test {
     SDL_Joystick* mJoystick = nullptr;
     ImGuiContext* mPreviousImGuiContext = nullptr;
     ImGuiContext* mImGuiContext = nullptr;
+    bool mSdlInitialized = false;
     std::shared_ptr<TestWindow> mWindow;
     std::shared_ptr<TestControlDeck> mControlDeck;
 };

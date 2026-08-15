@@ -21,6 +21,10 @@ bool IsBlank(const std::string& value) {
     return value.find_first_not_of(" \t\r\n") == std::string::npos;
 }
 
+bool IsValidSectionLabel(const std::string& value) {
+    return !IsBlank(value) && value.find("###") == std::string::npos;
+}
+
 std::string ValidateInputEditorLayout(const InputEditorLayout& layout,
                                       const std::unordered_map<CONTROLLERBUTTONS_T, std::string>& buttonNames) {
     if (layout.buttonGroups.empty()) {
@@ -30,8 +34,8 @@ std::string ValidateInputEditorLayout(const InputEditorLayout& layout,
     std::unordered_set<std::string> sectionLabels;
     std::unordered_set<CONTROLLERBUTTONS_T> bitmasks;
     for (const auto& group : layout.buttonGroups) {
-        if (IsBlank(group.label) || !sectionLabels.insert(group.label).second) {
-            return "section labels must be nonempty and unique";
+        if (!IsValidSectionLabel(group.label) || !sectionLabels.insert(group.label).second) {
+            return "section labels must be nonempty, unique, and not contain ###";
         }
         if (group.buttons.empty()) {
             return "button groups cannot be empty";
@@ -55,8 +59,8 @@ std::string ValidateInputEditorLayout(const InputEditorLayout& layout,
 
     std::unordered_set<Ship::StickIndex> stickIndices;
     for (const auto& stick : layout.sticks) {
-        if (IsBlank(stick.label) || !sectionLabels.insert(stick.label).second) {
-            return "section labels must be nonempty and unique";
+        if (!IsValidSectionLabel(stick.label) || !sectionLabels.insert(stick.label).second) {
+            return "section labels must be nonempty, unique, and not contain ###";
         }
         if ((stick.index != Ship::LEFT_STICK && stick.index != Ship::RIGHT_STICK) ||
             !stickIndices.insert(stick.index).second) {
